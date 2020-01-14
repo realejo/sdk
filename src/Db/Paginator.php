@@ -8,7 +8,7 @@
  * https://github.com/zendframework/zend-paginator/issues/41
  */
 
-namespace Realejo\Paginator;
+namespace Realejo\Sdk\Db;
 
 use Zend\Paginator\Adapter\DbSelect;
 use Zend\Paginator\Paginator as ZendPaginator;

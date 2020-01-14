@@ -2,7 +2,7 @@
 
 namespace Realejo\Sdk\Db;
 
-interface MapperInterface
+interface AdapterInterface
 {
     public function fetchAll(array $where = null, array $order = null, int $count = null, int $offset = null): ?array;
 

@@ -1,17 +1,15 @@
 <?php
 
-namespace RealejoTest\Service;
+namespace RealejoTest\Sdk\Db;
 
+use Laminas\Db\Adapter\Adapter;
+use Laminas\Dom\Document\Query as DomQuery;
+use Laminas\ServiceManager\ServiceManager;
 use Psr\Container\ContainerInterface;
 use Realejo\Cache\CacheService;
-use Realejo\Service\MapperAbstract;
-use Realejo\Service\Metadata\MetadataService;
-use RealejoTest\BaseTestCase;
-use Laminas\Db\Adapter\Adapter;
-use Laminas\Dom\Query as DomQuery;
-use Laminas\ServiceManager\ServiceManager;
+use RealejoTest\Sdk\Test\AbstractTestCase;
 
-class ServiceTest extends BaseTestCase
+class ServiceAbstractTest extends AbstractTestCase
 {
     /**
      * @var string
@@ -26,7 +24,7 @@ class ServiceTest extends BaseTestCase
     protected $tables = ['album'];
 
     /**
-     * @var ServiceConcrete
+     * @var RepositoryConcrete
      */
     private $service;
 
@@ -63,13 +61,16 @@ class ServiceTest extends BaseTestCase
     public function insertDefaultRows()
     {
         foreach ($this->defaultValues as $row) {
-            $this->getAdapter()->query("INSERT into {$this->tableName}({$this->tableKeyName}, artist, title, deleted)
+            $this->getAdapter()->query(
+                "INSERT into {$this->tableName}({$this->tableKeyName}, artist, title, deleted)
                                         VALUES (
                                             {$row[$this->tableKeyName]},
                                             '{$row['artist']}',
                                             '{$row['title']}',
                                             {$row['deleted']}
-                                        );", Adapter::QUERY_MODE_EXECUTE);
+                                        );",
+                Adapter::QUERY_MODE_EXECUTE
+            );
         }
         return $this;
     }
@@ -77,13 +78,13 @@ class ServiceTest extends BaseTestCase
     /**
      * Prepares the environment before running a test.
      */
-    protected function setUp()
+    protected function setUp():void
     {
         parent::setUp();
 
         $this->dropTables()->createTables()->insertDefaultRows();
 
-        $this->service = new ServiceConcrete();
+        $this->service = new RepositoryConcrete();
 
         $cacheService = new CacheService();
         $cacheService->setCacheDir($this->getDataDir() . '/cache');
@@ -96,7 +97,7 @@ class ServiceTest extends BaseTestCase
     /**
      * Cleans up the environment after running a test.
      */
-    protected function tearDown()
+    protected function tearDown():void
     {
         parent::tearDown();
 
@@ -214,15 +215,20 @@ class ServiceTest extends BaseTestCase
         $this->assertCount(4, $findAll, 'Deve conter 4 registros');
 
         // Grava um registro "sem o cache saber"
-        $this->service->getMapper()->getTableGateway()->insert([
-            'id' => 10,
-            'artist' => 'nao existo por enquanto',
-            'title' => 'bla bla',
-            'deleted' => 0
-        ]);
+        $this->service->getMapper()->getTableGateway()->insert(
+            [
+                'id' => 10,
+                'artist' => 'nao existo por enquanto',
+                'title' => 'bla bla',
+                'deleted' => 0
+            ]
+        );
 
-        $this->assertCount(4, $this->service->findAll(),
-            'Deve conter 4 registros depois do insert "sem o cache saber"');
+        $this->assertCount(
+            4,
+            $this->service->findAll(),
+            'Deve conter 4 registros depois do insert "sem o cache saber"'
+        );
         $this->assertTrue($this->service->getCache()->flush(), 'limpa o cache');
         $this->assertCount(5, $this->service->findAll(), 'Deve conter 5 registros');
 
@@ -344,8 +350,11 @@ class ServiceTest extends BaseTestCase
     public function testHtmlSelectGettersSetters()
     {
         $this->assertEquals('{nome}', $this->service->getHtmlSelectOption(), 'padrão {nome}');
-        $this->assertInstanceOf('\Realejo\Service\ServiceAbstract', $this->service->setHtmlSelectOption('{title}'),
-            'setHtmlSelectOption() retorna RW_App_Model_Base');
+        $this->assertInstanceOf(
+            '\Realejo\Service\ServiceAbstract',
+            $this->service->setHtmlSelectOption('{title}'),
+            'setHtmlSelectOption() retorna RW_App_Model_Base'
+        );
         $this->assertEquals('{title}', $this->service->getHtmlSelectOption(), 'troquei por {title}');
     }
 
@@ -368,13 +377,19 @@ class ServiceTest extends BaseTestCase
 
         $options->next();
         $this->assertEquals($this->defaultValues[0]['title'], $options->current()->nodeValue, "nome do segundo ok 1");
-        $this->assertEquals($this->defaultValues[0]['id'], $options->current()->getAttribute('value'),
-            "valor do segundo ok 1");
+        $this->assertEquals(
+            $this->defaultValues[0]['id'],
+            $options->current()->getAttribute('value'),
+            "valor do segundo ok 1"
+        );
 
         $options->next();
         $this->assertEquals($this->defaultValues[1]['title'], $options->current()->nodeValue, "nome do terceiro ok 1");
-        $this->assertEquals($this->defaultValues[1]['id'], $options->current()->getAttribute('value'),
-            "valor do terceiro ok 1");
+        $this->assertEquals(
+            $this->defaultValues[1]['id'],
+            $options->current()->getAttribute('value'),
+            "valor do terceiro ok 1"
+        );
 
 
         $select = $this->service->getHtmlSelect($id, 1, ['where' => ['artist' => 'Rush']]);
@@ -388,13 +403,19 @@ class ServiceTest extends BaseTestCase
         $this->assertNotEmpty($options->current()->getAttribute('value'), "o valor do primeiro não é vazio 2");
 
         $this->assertEquals($this->defaultValues[0]['title'], $options->current()->nodeValue, "nome do segundo ok 2");
-        $this->assertEquals($this->defaultValues[0]['id'], $options->current()->getAttribute('value'),
-            "valor do segundo ok 2");
+        $this->assertEquals(
+            $this->defaultValues[0]['id'],
+            $options->current()->getAttribute('value'),
+            "valor do segundo ok 2"
+        );
 
         $options->next();
         $this->assertEquals($this->defaultValues[1]['title'], $options->current()->nodeValue, "nome do terceiro ok 2");
-        $this->assertEquals($this->defaultValues[1]['id'], $options->current()->getAttribute('value'),
-            "valor do terceiro ok 2");
+        $this->assertEquals(
+            $this->defaultValues[1]['id'],
+            $options->current()->getAttribute('value'),
+            "valor do terceiro ok 2"
+        );
     }
 
     public function testHtmlSelectSemOptionValido()
@@ -414,23 +435,35 @@ class ServiceTest extends BaseTestCase
 
         $options->next();
         $this->assertEmpty($options->current()->nodeValue, "nome do segundo ok 1");
-        $this->assertEquals($this->defaultValues[0]['id'], $options->current()->getAttribute('value'),
-            "valor do segundo ok 1");
+        $this->assertEquals(
+            $this->defaultValues[0]['id'],
+            $options->current()->getAttribute('value'),
+            "valor do segundo ok 1"
+        );
 
         $options->next();
         $this->assertEmpty($options->current()->nodeValue, "nome do terceiro ok 1");
-        $this->assertEquals($this->defaultValues[1]['id'], $options->current()->getAttribute('value'),
-            "valor do terceiro ok 1");
+        $this->assertEquals(
+            $this->defaultValues[1]['id'],
+            $options->current()->getAttribute('value'),
+            "valor do terceiro ok 1"
+        );
 
         $options->next();
         $this->assertEmpty($options->current()->nodeValue, "nome do quarto ok 1");
-        $this->assertEquals($this->defaultValues[2]['id'], $options->current()->getAttribute('value'),
-            "valor do quarto ok 1");
+        $this->assertEquals(
+            $this->defaultValues[2]['id'],
+            $options->current()->getAttribute('value'),
+            "valor do quarto ok 1"
+        );
 
         $options->next();
         $this->assertEmpty($options->current()->nodeValue, "nome do quinto ok 1");
-        $this->assertEquals($this->defaultValues[3]['id'], $options->current()->getAttribute('value'),
-            "valor do quinto ok 1");
+        $this->assertEquals(
+            $this->defaultValues[3]['id'],
+            $options->current()->getAttribute('value'),
+            "valor do quinto ok 1"
+        );
 
         $select = $this->service->setHtmlSelectOption('{nao_existo}')->getHtmlSelect($id);
         $this->assertNotEmpty($select);
@@ -444,23 +477,35 @@ class ServiceTest extends BaseTestCase
 
         $options->next();
         $this->assertEmpty($options->current()->nodeValue, "nome do segundo ok 2");
-        $this->assertEquals($this->defaultValues[0]['id'], $options->current()->getAttribute('value'),
-            "valor do segundo ok 2");
+        $this->assertEquals(
+            $this->defaultValues[0]['id'],
+            $options->current()->getAttribute('value'),
+            "valor do segundo ok 2"
+        );
 
         $options->next();
         $this->assertEmpty($options->current()->nodeValue, "nome do terceiro ok 2");
-        $this->assertEquals($this->defaultValues[1]['id'], $options->current()->getAttribute('value'),
-            "valor do terceiro ok 2");
+        $this->assertEquals(
+            $this->defaultValues[1]['id'],
+            $options->current()->getAttribute('value'),
+            "valor do terceiro ok 2"
+        );
 
         $options->next();
         $this->assertEmpty($options->current()->nodeValue, "nome do quarto ok 2");
-        $this->assertEquals($this->defaultValues[2]['id'], $options->current()->getAttribute('value'),
-            "valor do quarto ok 2");
+        $this->assertEquals(
+            $this->defaultValues[2]['id'],
+            $options->current()->getAttribute('value'),
+            "valor do quarto ok 2"
+        );
 
         $options->next();
         $this->assertEmpty($options->current()->nodeValue, "nome do quinto ok 2");
-        $this->assertEquals($this->defaultValues[3]['id'], $options->current()->getAttribute('value'),
-            "valor do quinto ok 2");
+        $this->assertEquals(
+            $this->defaultValues[3]['id'],
+            $options->current()->getAttribute('value'),
+            "valor do quinto ok 2"
+        );
     }
 
     public function testHtmlSelectOption()
@@ -481,23 +526,35 @@ class ServiceTest extends BaseTestCase
 
         $options->next();
         $this->assertEquals($this->defaultValues[0]['artist'], $options->current()->nodeValue, "nome do segundo ok");
-        $this->assertEquals($this->defaultValues[0]['id'], $options->current()->getAttribute('value'),
-            "valor do segundo ok");
+        $this->assertEquals(
+            $this->defaultValues[0]['id'],
+            $options->current()->getAttribute('value'),
+            "valor do segundo ok"
+        );
 
         $options->next();
         $this->assertEquals($this->defaultValues[1]['artist'], $options->current()->nodeValue, "nome do terceiro ok");
-        $this->assertEquals($this->defaultValues[1]['id'], $options->current()->getAttribute('value'),
-            "valor do terceiro ok");
+        $this->assertEquals(
+            $this->defaultValues[1]['id'],
+            $options->current()->getAttribute('value'),
+            "valor do terceiro ok"
+        );
 
         $options->next();
         $this->assertEquals($this->defaultValues[2]['artist'], $options->current()->nodeValue, "nome do quarto ok");
-        $this->assertEquals($this->defaultValues[2]['id'], $options->current()->getAttribute('value'),
-            "valor do quarto ok");
+        $this->assertEquals(
+            $this->defaultValues[2]['id'],
+            $options->current()->getAttribute('value'),
+            "valor do quarto ok"
+        );
 
         $options->next();
         $this->assertEquals($this->defaultValues[3]['artist'], $options->current()->nodeValue, "nome do quinto ok");
-        $this->assertEquals($this->defaultValues[3]['id'], $options->current()->getAttribute('value'),
-            "valor do quinto ok");
+        $this->assertEquals(
+            $this->defaultValues[3]['id'],
+            $options->current()->getAttribute('value'),
+            "valor do quinto ok"
+        );
     }
 
     public function testHtmlSelectPlaceholder()
@@ -508,8 +565,11 @@ class ServiceTest extends BaseTestCase
         $this->assertNotEmpty($select);
         $dom = new DomQuery($select);
         $this->assertCount(1, $dom->execute('#nome_usado'), 'id #nome_usado existe');
-        $this->assertCount(1, $dom->execute("select[placeholder=\"$ph\"]"),
-            "placeholder select[placeholder=\"$ph\"] encontrado");
+        $this->assertCount(
+            1,
+            $dom->execute("select[placeholder=\"$ph\"]"),
+            "placeholder select[placeholder=\"$ph\"] encontrado"
+        );
         $options = $dom->execute("option");
         $this->assertCount(5, $options, " 5 opções encontradas");
         $this->assertEquals($ph, $options->current()->nodeValue, "placeholder é a primeira");
@@ -536,16 +596,22 @@ class ServiceTest extends BaseTestCase
         $select = $this->service->getHtmlSelect('nome_usado', null, ['show-empty' => false]);
         $this->assertNotEmpty($select);
         $dom = new DomQuery($select);
-        $this->assertCount(1, $dom->execute('#nome_usado'),
-            'id #nome_usado existe SEM valor padrão e show-empty=false');
+        $this->assertCount(
+            1,
+            $dom->execute('#nome_usado'),
+            'id #nome_usado existe SEM valor padrão e show-empty=false'
+        );
         $this->assertCount(4, $dom->execute('option'), '4 opções existem SEM valor padrão e show-empty=false');
 
         // sem mostrar o empty
         $select = $this->service->getHtmlSelect('nome_usado', 1, ['show-empty' => false]);
         $this->assertNotEmpty($select);
         $dom = new DomQuery($select);
-        $this->assertCount(1, $dom->execute('#nome_usado'),
-            'id #nome_usado existe com valor padrão e show-empty=false');
+        $this->assertCount(
+            1,
+            $dom->execute('#nome_usado'),
+            'id #nome_usado existe com valor padrão e show-empty=false'
+        );
         $this->assertCount(4, $dom->execute('option'), '4 opções existem com valor padrão e show-empty=false');
 
         // sem mostrar o empty
@@ -554,10 +620,14 @@ class ServiceTest extends BaseTestCase
         $dom = new DomQuery($select);
         $this->assertCount(1, $dom->execute('#nome_usado'), 'id #nome_usado existe com valor padrão e show-empty=true');
         $this->assertCount(5, $dom->execute('option'), '5 opções existem com valor padrão e show-empty=true');
-        $this->assertEmpty($dom->execute('option')->current()->nodeValue,
-            "a primeira é vazia com valor padrão e show-empty=true");
-        $this->assertEmpty($dom->execute('option')->current()->getAttribute('value'),
-            "o valor da primeira é vazio com valor padrão e show-empty=true");
+        $this->assertEmpty(
+            $dom->execute('option')->current()->nodeValue,
+            "a primeira é vazia com valor padrão e show-empty=true"
+        );
+        $this->assertEmpty(
+            $dom->execute('option')->current()->getAttribute('value'),
+            "o valor da primeira é vazio com valor padrão e show-empty=true"
+        );
     }
 
     public function testHtmlSelectGrouped()
@@ -574,61 +644,109 @@ class ServiceTest extends BaseTestCase
         $this->assertCount(4, $options, " 4 opções encontradas");
 
         $this->assertEquals($this->defaultValues[0]['title'], $options->current()->nodeValue, "nome do primeiro ok 1");
-        $this->assertEquals($this->defaultValues[0]['id'], $options->current()->getAttribute('value'),
-            "valor do primeiro ok 1");
+        $this->assertEquals(
+            $this->defaultValues[0]['id'],
+            $options->current()->getAttribute('value'),
+            "valor do primeiro ok 1"
+        );
 
         $options->next();
         $this->assertEquals($this->defaultValues[1]['title'], $options->current()->nodeValue, "nome do segundo ok 1");
-        $this->assertEquals($this->defaultValues[1]['id'], $options->current()->getAttribute('value'),
-            "valor do segundo ok 1");
+        $this->assertEquals(
+            $this->defaultValues[1]['id'],
+            $options->current()->getAttribute('value'),
+            "valor do segundo ok 1"
+        );
 
         $options->next();
         $this->assertEquals($this->defaultValues[2]['title'], $options->current()->nodeValue, "nome do terceiro ok 1");
-        $this->assertEquals($this->defaultValues[2]['id'], $options->current()->getAttribute('value'),
-            "valor do terceiro ok 1");
+        $this->assertEquals(
+            $this->defaultValues[2]['id'],
+            $options->current()->getAttribute('value'),
+            "valor do terceiro ok 1"
+        );
 
         $options->next();
         $this->assertEquals($this->defaultValues[3]['title'], $options->current()->nodeValue, "nome do quarto ok 1");
-        $this->assertEquals($this->defaultValues[3]['id'], $options->current()->getAttribute('value'),
-            "valor do quarto ok 1");
+        $this->assertEquals(
+            $this->defaultValues[3]['id'],
+            $options->current()->getAttribute('value'),
+            "valor do quarto ok 1"
+        );
 
         $optgroups = $dom->execute("optgroup");
         $this->assertCount(3, $optgroups, " 3 grupo de opções encontrados");
 
-        $this->assertEquals($this->defaultValues[0]['artist'], $optgroups->current()->getAttribute('label'),
-            "nome do primeiro grupo ok");
+        $this->assertEquals(
+            $this->defaultValues[0]['artist'],
+            $optgroups->current()->getAttribute('label'),
+            "nome do primeiro grupo ok"
+        );
         $this->assertEquals(2, $optgroups->current()->childNodes->length, " 2 opções encontrados no priemiro optgroup");
-        $this->assertEquals($this->defaultValues[0]['title'], $optgroups->current()->firstChild->nodeValue,
-            "nome do primeiro ok 2");
-        $this->assertEquals($this->defaultValues[0]['id'], $optgroups->current()->firstChild->getAttribute('value'),
-            "valor do primeiro ok 2");
-        $this->assertEquals($this->defaultValues[1]['title'], $optgroups->current()->firstChild->nextSibling->nodeValue,
-            "nome do segundo ok 2");
-        $this->assertEquals($this->defaultValues[1]['id'],
-            $optgroups->current()->firstChild->nextSibling->getAttribute('value'), "valor do segundo ok 2");
+        $this->assertEquals(
+            $this->defaultValues[0]['title'],
+            $optgroups->current()->firstChild->nodeValue,
+            "nome do primeiro ok 2"
+        );
+        $this->assertEquals(
+            $this->defaultValues[0]['id'],
+            $optgroups->current()->firstChild->getAttribute('value'),
+            "valor do primeiro ok 2"
+        );
+        $this->assertEquals(
+            $this->defaultValues[1]['title'],
+            $optgroups->current()->firstChild->nextSibling->nodeValue,
+            "nome do segundo ok 2"
+        );
+        $this->assertEquals(
+            $this->defaultValues[1]['id'],
+            $optgroups->current()->firstChild->nextSibling->getAttribute('value'),
+            "valor do segundo ok 2"
+        );
 
         $optgroups->next();
-        $this->assertEquals($this->defaultValues[2]['artist'], $optgroups->current()->getAttribute('label'),
-            "nome do segundo grupo ok");
+        $this->assertEquals(
+            $this->defaultValues[2]['artist'],
+            $optgroups->current()->getAttribute('label'),
+            "nome do segundo grupo ok"
+        );
         $this->assertEquals(1, $optgroups->current()->childNodes->length, " 2 opções encontrados");
-        $this->assertEquals($this->defaultValues[2]['title'], $optgroups->current()->firstChild->nodeValue,
-            "nome do terceiro ok 2");
-        $this->assertEquals($this->defaultValues[2]['id'], $optgroups->current()->firstChild->getAttribute('value'),
-            "valor do terceiro ok 2");
+        $this->assertEquals(
+            $this->defaultValues[2]['title'],
+            $optgroups->current()->firstChild->nodeValue,
+            "nome do terceiro ok 2"
+        );
+        $this->assertEquals(
+            $this->defaultValues[2]['id'],
+            $optgroups->current()->firstChild->getAttribute('value'),
+            "valor do terceiro ok 2"
+        );
 
         $optgroups->next();
-        $this->assertEquals($this->defaultValues[3]['artist'], $optgroups->current()->getAttribute('label'),
-            "nome do terceiro grupo ok");
+        $this->assertEquals(
+            $this->defaultValues[3]['artist'],
+            $optgroups->current()->getAttribute('label'),
+            "nome do terceiro grupo ok"
+        );
         $this->assertEquals(1, $optgroups->current()->childNodes->length, " 2 opções encontrados");
-        $this->assertEquals($this->defaultValues[3]['title'], $optgroups->current()->firstChild->nodeValue,
-            "nome do terceiro ok 2");
-        $this->assertEquals($this->defaultValues[3]['id'], $optgroups->current()->firstChild->getAttribute('value'),
-            "valor do terceiro ok 2");
+        $this->assertEquals(
+            $this->defaultValues[3]['title'],
+            $optgroups->current()->firstChild->nodeValue,
+            "nome do terceiro ok 2"
+        );
+        $this->assertEquals(
+            $this->defaultValues[3]['id'],
+            $optgroups->current()->firstChild->getAttribute('value'),
+            "valor do terceiro ok 2"
+        );
 
         // SELECT VAZIO!
 
-        $select = $this->service->setHtmlSelectOption('{title}')->getHtmlSelect($id, 1,
-            ['grouped' => 'artist', 'where' => ['id' => 100]]);
+        $select = $this->service->setHtmlSelectOption('{title}')->getHtmlSelect(
+            $id,
+            1,
+            ['grouped' => 'artist', 'where' => ['id' => 100]]
+        );
         $this->assertNotEmpty($select);
         $dom = new DomQuery($select);
         $this->assertCount(1, $dom->execute("#$id"), "id #$id existe");
@@ -662,13 +780,19 @@ class ServiceTest extends BaseTestCase
 
         $options->next();
         $this->assertEquals($this->defaultValues[0]['title'], $options->current()->nodeValue, "nome do segundo ok 1");
-        $this->assertEquals($this->defaultValues[0]['id'], $options->current()->getAttribute('value'),
-            "valor do segundo ok 1");
+        $this->assertEquals(
+            $this->defaultValues[0]['id'],
+            $options->current()->getAttribute('value'),
+            "valor do segundo ok 1"
+        );
 
         $options->next();
         $this->assertEquals($this->defaultValues[1]['title'], $options->current()->nodeValue, "nome do terceiro ok 1");
-        $this->assertEquals($this->defaultValues[1]['id'], $options->current()->getAttribute('value'),
-            "valor do terceiro ok 1");
+        $this->assertEquals(
+            $this->defaultValues[1]['id'],
+            $options->current()->getAttribute('value'),
+            "valor do terceiro ok 1"
+        );
 
 
         $select = $this->service->getHtmlSelect($id, 1, ['where' => ['artist' => 'Rush']]);
@@ -682,13 +806,19 @@ class ServiceTest extends BaseTestCase
         $this->assertNotEmpty($options->current()->getAttribute('value'), "o valor do primeiro não é vazio 2");
 
         $this->assertEquals($this->defaultValues[0]['title'], $options->current()->nodeValue, "nome do segundo ok 2");
-        $this->assertEquals($this->defaultValues[0]['id'], $options->current()->getAttribute('value'),
-            "valor do segundo ok 2");
+        $this->assertEquals(
+            $this->defaultValues[0]['id'],
+            $options->current()->getAttribute('value'),
+            "valor do segundo ok 2"
+        );
 
         $options->next();
         $this->assertEquals($this->defaultValues[1]['title'], $options->current()->nodeValue, "nome do terceiro ok 2");
-        $this->assertEquals($this->defaultValues[1]['id'], $options->current()->getAttribute('value'),
-            "valor do terceiro ok 2");
+        $this->assertEquals(
+            $this->defaultValues[1]['id'],
+            $options->current()->getAttribute('value'),
+            "valor do terceiro ok 2"
+        );
     }
 
     public function testHtmlSelectMultipleKeyWithCast()
@@ -713,13 +843,19 @@ class ServiceTest extends BaseTestCase
 
         $options->next();
         $this->assertEquals($this->defaultValues[0]['title'], $options->current()->nodeValue, "nome do segundo ok 1");
-        $this->assertEquals($this->defaultValues[0]['id'], $options->current()->getAttribute('value'),
-            "valor do segundo ok 1");
+        $this->assertEquals(
+            $this->defaultValues[0]['id'],
+            $options->current()->getAttribute('value'),
+            "valor do segundo ok 1"
+        );
 
         $options->next();
         $this->assertEquals($this->defaultValues[1]['title'], $options->current()->nodeValue, "nome do terceiro ok 1");
-        $this->assertEquals($this->defaultValues[1]['id'], $options->current()->getAttribute('value'),
-            "valor do terceiro ok 1");
+        $this->assertEquals(
+            $this->defaultValues[1]['id'],
+            $options->current()->getAttribute('value'),
+            "valor do terceiro ok 1"
+        );
 
 
         $select = $this->service->getHtmlSelect($id, 1, ['where' => ['artist' => 'Rush']]);
@@ -733,19 +869,25 @@ class ServiceTest extends BaseTestCase
         $this->assertNotEmpty($options->current()->getAttribute('value'), 'o valor do primeiro não é vazio 2');
 
         $this->assertEquals($this->defaultValues[0]['title'], $options->current()->nodeValue, 'nome do segundo ok 2');
-        $this->assertEquals($this->defaultValues[0]['id'], $options->current()->getAttribute('value'),
-            "valor do segundo ok 2");
+        $this->assertEquals(
+            $this->defaultValues[0]['id'],
+            $options->current()->getAttribute('value'),
+            "valor do segundo ok 2"
+        );
 
         $options->next();
         $this->assertEquals($this->defaultValues[1]['title'], $options->current()->nodeValue, 'nome do terceiro ok 2');
-        $this->assertEquals($this->defaultValues[1]['id'], $options->current()->getAttribute('value'),
-            'valor do terceiro ok 2');
+        $this->assertEquals(
+            $this->defaultValues[1]['id'],
+            $options->current()->getAttribute('value'),
+            'valor do terceiro ok 2'
+        );
     }
 
     public function testServiceLocator()
     {
         $fakeServiceLocator = new FakeServiceLocator();
-        $service = new ServiceConcrete();
+        $service = new RepositoryConcrete();
         $service->setServiceLocator($fakeServiceLocator);
         $this->assertInstanceOf(FakeServiceLocator::class, $service->getServiceLocator());
         $this->assertInstanceOf(ContainerInterface::class, $service->getServiceLocator());

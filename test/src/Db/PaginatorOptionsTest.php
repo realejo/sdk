@@ -1,9 +1,9 @@
 <?php
 
-namespace RealejoTest\Service;
+namespace RealejoTest\Sdk\Db;
 
 use PHPUnit\Framework\TestCase;
-use Realejo\Service\PaginatorOptions;
+use Realejo\Sdk\Db\PaginatorOptions;
 
 /**
  * PaginatorOptions test case.
@@ -14,7 +14,7 @@ class PaginatorOptionsTest extends TestCase
     /**
      * Tests PaginatorOptions->setPageRange()
      */
-    public function testGettersAndSetters()
+    public function testGettersAndSetters():void
     {
         $paginator = new PaginatorOptions();
 

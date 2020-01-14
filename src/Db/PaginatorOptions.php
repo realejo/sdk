@@ -1,6 +1,6 @@
 <?php
 
-namespace Realejo\Service;
+namespace Realejo\Sdk\Db;
 
 class PaginatorOptions
 {

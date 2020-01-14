@@ -18,22 +18,24 @@
     "laminas/laminas-servicemanager": "^3.3",
     "laminas/laminas-i18n" : "~2.7",
     "laminas/laminas-validator" : "~2.8",
-    "laminas/laminas-i18n-resources": "^2.5"
+    "laminas/laminas-i18n-resources": "^2.5",
+    "laminas/laminas-filter": "^2.9"
   },
   "require-dev" : {
     "friendsofphp/php-cs-fixer": "2.*",
     "squizlabs/php_codesniffer": "^2.8 || ^3.0",
     "phpunit/phpunit" : "^6.5 || ^7.0",
-    "laminas/laminas-dom": "~2.6.0"
+    "laminas/laminas-dom": "~2.6.0",
+    "laminas/laminas-test": "^3.3"
   },
   "autoload" : {
     "psr-4" : {
-      "Realejo\\" : "src/"
+      "Realejo\\Sdk\\" : "src/"
     }
   },
   "autoload-dev" : {
     "psr-4" : {
-      "RealejoTest\\" : "test/src"
+      "RealejoTest\\Sdk\\" : "test/src"
     }
   },
   "suggest": {

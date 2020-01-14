@@ -1,6 +1,6 @@
 <?php
 
-namespace Realejo\Service;
+namespace Realejo\Sdk\Db;
 
 use Realejo\Stdlib\ArrayObject;
 use Zend\Hydrator\ArraySerializable;

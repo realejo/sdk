@@ -1,6 +1,6 @@
 <?php
 
-namespace RealejoTest\Service;
+namespace RealejoTest\Sdk\Db;
 
 use Psr\Container\ContainerExceptionInterface;
 use Psr\Container\ContainerInterface;

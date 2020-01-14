@@ -1,18 +1,18 @@
 <?php
 
-namespace RealejoTest\Service\Mapper;
+namespace RealejoTest\Sdk\Db;
 
-use Realejo\Service\MapperAbstract;
 use Laminas\Db\Sql\Select;
+use Realejo\Sdk\Db\AbstractRepository;
 
-class MapperConcrete extends MapperAbstract
+class RepositoryConcrete extends AbstractRepository
 {
     protected $tableName = 'album';
     protected $tableKey = 'id';
 
     protected $tableJoin = [
         'test' => [
-            'table' =>'test_table',
+            'table' => 'test_table',
             'condition' => 'test_condition',
             'columns' => ['test_column'],
             'type' => Select::JOIN_LEFT

@@ -8,21 +8,20 @@ use Laminas\Db\ResultSet\HydratingResultSet;
 use Laminas\Db\Sql\Expression;
 use Laminas\Db\Sql\Predicate;
 use Laminas\Db\Sql\Select;
-use Laminas\Db\TableGateway\Feature\GlobalAdapterFeature;
 use Laminas\Db\TableGateway\TableGateway;
 use Laminas\Hydrator\ArraySerializable;
 use LogicException;
 use Psr\Container\ContainerInterface;
-use Realejo\Stdlib\ArrayObject;
 use RuntimeException;
+use stdClass;
 
-class LaminasDbAdapter implements MapperInterface
+class LaminasDbAdapter implements AdapterInterface
 {
     public const KEY_STRING = 'STRING';
     public const KEY_INTEGER = 'INTEGER';
 
     /**
-     * @var ArrayObject
+     * @var stdClass
      */
     protected $hydratorEntity;
 
@@ -56,15 +55,6 @@ class LaminasDbAdapter implements MapperInterface
     /**
      * Join lefts que devem ser usados no mapper
      *
-     * @deprecated use $tableJoin
-     *
-     * @var array
-     */
-    protected $tableJoinLeft = false;
-
-    /**
-     * Join lefts que devem ser usados no mapper
-     *
      * @var array
      */
     protected $tableJoin;
@@ -72,23 +62,23 @@ class LaminasDbAdapter implements MapperInterface
     /**
      * Join lefts que devem ser usados no mapper
      *
-     * @var boolean
+     * @var bool
      */
     protected $useJoin = false;
 
     /**
      * Define se deve usar todas as chaves para os operações de update e delete
      *
-     * @var boolean
+     * @var bool
      */
     protected $useAllKeys = true;
 
     /**
      * Define a ordem padrão a ser usada na consultas
      *
-     * @var array|string|Expression
+     * @var array
      */
-    protected $order = [];
+    protected $defaultOrder = [];
 
     /**
      * Define o adapter a ser usado
@@ -100,14 +90,14 @@ class LaminasDbAdapter implements MapperInterface
     /**
      * Define se deve remover os registros ou apenas marcar como removido
      *
-     * @var boolean
+     * @var bool
      */
     protected $useDeleted = false;
 
     /**
      * Define se deve mostrar os registros marcados como removido
      *
-     * @var boolean
+     * @var bool
      */
     protected $showDeleted = false;
 
@@ -194,12 +184,7 @@ class LaminasDbAdapter implements MapperInterface
         return $key;
     }
 
-    /**
-     * @param string|array
-     *
-     * @return MapperAbstract
-     */
-    public function setTableKey($key)
+    public function setTableKey($key): self
     {
         if (empty($key) && !is_string($key) && !is_array($key)) {
             throw new InvalidArgumentException('Chave inválida em ' . get_class($this));
@@ -210,10 +195,7 @@ class LaminasDbAdapter implements MapperInterface
         return $this;
     }
 
-    /**
-     * @return TableGateway
-     */
-    public function getTableGateway()
+    public function getTableGateway(): TableGateway
     {
         if (null === $this->tableName) {
             throw new InvalidArgumentException('Tabela não definida em ' . get_class($this));
@@ -228,10 +210,7 @@ class LaminasDbAdapter implements MapperInterface
         return $this->tableGateway;
     }
 
-    /**
-     * @return Adapter
-     */
-    public function getAdapter()
+    public function getAdapter(): Adapter
     {
         if (null === $this->adapter) {
             if ($this->hasServiceLocator() && $this->getServiceLocator()->has(Adapter::class)) {
@@ -239,41 +218,29 @@ class LaminasDbAdapter implements MapperInterface
                 return $this->adapter;
             }
 
-            $this->adapter = GlobalAdapterFeature::getStaticAdapter();
+            throw new RuntimeException('Adapter não definido');
         }
 
         return $this->adapter;
     }
 
-    /**
-     * @param Adapter $adapter
-     *
-     * @return MapperAbstract
-     */
-    public function setAdapter(Adapter $adapter)
+    public function setAdapter(Adapter $adapter): self
     {
         $this->adapter = $adapter;
         return $this;
     }
 
-    public function hasServiceLocator()
+    public function hasServiceLocator(): bool
     {
         return null !== $this->serviceLocator;
     }
 
-    /**
-     * @return ContainerInterface
-     */
-    public function getServiceLocator()
+    public function getServiceLocator(): ContainerInterface
     {
         return $this->serviceLocator;
     }
 
-    /**
-     * @param ContainerInterface $serviceLocator
-     * @return MapperAbstract
-     */
-    public function setServiceLocator(ContainerInterface $serviceLocator)
+    public function setServiceLocator(ContainerInterface $serviceLocator): self
     {
         $this->serviceLocator = $serviceLocator;
 
@@ -293,11 +260,11 @@ class LaminasDbAdapter implements MapperInterface
             return $key;
         }
 
-        if (is_string($this->getTableKey()) && is_numeric($key)) {
+        if (is_numeric($key) && is_string($this->getTableKey())) {
             return "{$this->getTableKey()} = $key";
         }
 
-        if (is_string($this->getTableKey()) && is_string($key)) {
+        if (is_string($key) && is_string($this->getTableKey())) {
             return "{$this->getTableKey()} = '$key'";
         }
 
@@ -311,7 +278,7 @@ class LaminasDbAdapter implements MapperInterface
         // Verifica as chaves definidas
         foreach ($this->getTableKey() as $type => $definedKey) {
             // Verifica se é uma chave única com cast
-            if (count($this->getTableKey()) === 1 && !is_array($key)) {
+            if (!is_array($key) && count($this->getTableKey()) === 1) {
                 // Grava a chave como integer
                 if (is_numeric($type) || $type === self::KEY_INTEGER) {
                     $where[] = "$definedKey = $key";
@@ -355,7 +322,8 @@ class LaminasDbAdapter implements MapperInterface
         }
 
         // Verifica se todas as chaves foram usadas
-        if ($this->getUseAllKeys() === true
+        if (
+            $this->getUseAllKeys() === true
             && is_array($this->getTableKey())
             && count($usedKeys) !== count($this->getTableKey())
         ) {
@@ -365,20 +333,12 @@ class LaminasDbAdapter implements MapperInterface
         return '(' . implode(') AND (', $where) . ')';
     }
 
-    /**
-     * @return boolean
-     */
-    public function getUseAllKeys()
+    public function getUseAllKeys(): bool
     {
         return $this->useAllKeys;
     }
 
-    /**
-     * @param boolean $useAllKeys
-     *
-     * @return $this
-     */
-    public function setUseAllKeys($useAllKeys)
+    public function setUseAllKeys(bool $useAllKeys): self
     {
         $this->useAllKeys = $useAllKeys;
 
@@ -386,10 +346,10 @@ class LaminasDbAdapter implements MapperInterface
     }
 
     /**
-     * @param $set
-     * @return bool|int
+     * @param array $set
+     * @return int|array
      */
-    public function save($set)
+    public function save(array $set)
     {
         if (!isset($set[$this->getTableKey()])) {
             return $this->insert($set);
@@ -410,11 +370,11 @@ class LaminasDbAdapter implements MapperInterface
     /**
      * Grava um novo registro
      *
-     * @param $set
-     * @return int boolean
+     * @param array $set
+     * @return int|array boolean
      *
      */
-    public function insert($set)
+    public function insert(array $set)
     {
         // Verifica se há algo a ser adicionado
         if (empty($set)) {
@@ -425,7 +385,7 @@ class LaminasDbAdapter implements MapperInterface
         $this->lastInsertSet = $set;
         // Cria um objeto para conseguir usar o hydrator
         if (is_array($set)) {
-            $set = new ArrayObject($set);
+            $set = new stdClass($set);
         }
 
         $hydrator = $this->getHydrator();
@@ -494,7 +454,7 @@ class LaminasDbAdapter implements MapperInterface
     /**
      * @param ArraySerializable $hydrator
      *
-     * @return MapperAbstract
+     * @return self
      */
     public function setHydrator(ArraySerializable $hydrator)
     {
@@ -512,7 +472,7 @@ class LaminasDbAdapter implements MapperInterface
      * @param mixed $where condições para localizar o registro
      * @param string|array $order
      *
-     * @return null|ArrayObject
+     * @return null|stdClass
      */
     public function fetchRow($where, $order = null)
     {
@@ -548,13 +508,15 @@ class LaminasDbAdapter implements MapperInterface
     /**
      * @param array $where condições para localizar o registro
      * @param array|string $order
-     * @param integer $count
-     * @param integer $offset
+     * @param int $count
+     * @param int $offset
      *
-     * @return ArrayObject[]|HydratingResultSet
+     * @return stdClass[]|HydratingResultSet
      */
     public function fetchAll(array $where = null, array $order = null, int $count = null, int $offset = null): ?array
     {
+        $where = $where ?: [];
+        $order = $order ?: [];
         return $this->findAllWithSelect($this->getSelect($where, $order, $count, $offset));
     }
 
@@ -576,11 +538,10 @@ class LaminasDbAdapter implements MapperInterface
         }
 
         $hydrator = $this->getHydrator();
-        if (empty($hydrator)) {
+        if ($hydrator === null) {
             return $fetchAll;
         }
         $hydratorEntity = $this->getHydratorEntity();
-
 
         if ($this->useHydrateResultSet) {
             $hydrateResultSet = new HydratingResultSet($hydrator, new $hydratorEntity());
@@ -590,7 +551,7 @@ class LaminasDbAdapter implements MapperInterface
         }
 
         foreach ($fetchAll as $id => $row) {
-            $fetchAll[$id] = $hydrator->hydrate($row, new $hydratorEntity);
+            $fetchAll[$id] = $hydrator->hydrate($row, new $hydratorEntity());
         }
 
         return $fetchAll;
@@ -599,32 +560,20 @@ class LaminasDbAdapter implements MapperInterface
     /**
      * Retorna o select para a consulta
      *
-     * @param string|array $where OPTIONAL An SQL WHERE clause
-     * @param string|array|Expression $order OPTIONAL An SQL ORDER clause.
+     * @param array $where OPTIONAL An SQL WHERE clause
+     * @param array $order OPTIONAL An SQL ORDER clause.
      * @param int $count OPTIONAL An SQL LIMIT count.
      * @param int $offset OPTIONAL An SQL LIMIT offset.
      *
      * @return Select
      */
-    public function getSelect(array $where = null, $order = null, int $count = null, int $offset = null): Select
+    public function getSelect(array $where = [], array $order = [], int $count = null, int $offset = null): Select
     {
         // Retorna o select para a tabela
         $select = $this->getTableSelect();
 
-        // Verifica se existe ordem padrão
-        if ($order === false) {
-            $select->reset('order');
-        } elseif (empty($order) && isset($this->order)) {
-            if (is_string($this->order) && strpos($this->order, '=') !== false) {
-                $this->order = new Expression($this->order);
-            }
-            $order = $this->order;
-        }
-
         // Define a ordem
-        if (!empty($order)) {
-            $select->order($order);
-        }
+        $select->order($order ?: $this->defaultOrder);
 
         // Verifica se há paginação, não confundir com o Zend\Paginator
         if ($count !== null) {
@@ -635,16 +584,12 @@ class LaminasDbAdapter implements MapperInterface
         }
 
         // Checks $where is deleted
-        if ($this->getUseDeleted() && !$this->getShowDeleted() && !isset($where['deleted'])) {
+        if (!isset($where['deleted']) && $this->getUseDeleted() && !$this->getShowDeleted()) {
             $where['deleted'] = 0;
         }
 
-        // Verifica as clausulas especiais se houver
-        $where = $this->getWhere($where);
-
         // processa as clausulas
         foreach ($where as $id => $w) {
-            // \Zend\Db\Sql\Expression
             if (is_numeric($id) && $w instanceof Expression) {
                 if (!$w instanceof Predicate\Expression) {
                     $select->where(new Predicate\Expression($w->getExpression()));
@@ -662,16 +607,6 @@ class LaminasDbAdapter implements MapperInterface
 
             if ($id === 'deleted' && $w === true) {
                 $select->where("{$this->getTableGateway()->getTable()}.deleted=1");
-                continue;
-            }
-
-            if ((is_numeric($id) && $w === 'ativo') || ($id === 'ativo' && $w === true)) {
-                $select->where("{$this->getTableGateway()->getTable()}.ativo=1");
-                continue;
-            }
-
-            if ($id === 'ativo' && $w === false) {
-                $select->where("{$this->getTableGateway()->getTable()}.ativo=0");
                 continue;
             }
 
@@ -723,9 +658,10 @@ class LaminasDbAdapter implements MapperInterface
                     );
                 }
 
-                if (isset($definition['columns']) && !empty($definition['columns']) && !is_array(
-                        $definition['columns']
-                    )) {
+                if (
+                    isset($definition['columns']) && !empty($definition['columns'])
+                    && !is_array($definition['columns'])
+                ) {
                     throw new InvalidArgumentException(
                         "Colunas para a tabela {$definition['table']} devem ser um array em " . get_class($this)
                     );
@@ -757,7 +693,7 @@ class LaminasDbAdapter implements MapperInterface
     }
 
     /**
-     * @return boolean
+     * @return bool
      */
     public function getUseJoin()
     {
@@ -765,7 +701,7 @@ class LaminasDbAdapter implements MapperInterface
     }
 
     /**
-     * @param boolean $useJoin
+     * @param bool $useJoin
      *
      * @return self
      */
@@ -778,7 +714,7 @@ class LaminasDbAdapter implements MapperInterface
     /**
      * Retorna se irá usar o campo deleted ou remover o registro quando usar delete()
      *
-     * @return boolean
+     * @return bool
      */
     public function getUseDeleted(): bool
     {
@@ -788,7 +724,7 @@ class LaminasDbAdapter implements MapperInterface
     /**
      * Define se irá usar o campo deleted ou remover o registro quando usar delete()
      *
-     * @param boolean $useDeleted
+     * @param bool $useDeleted
      *
      * @return self
      */
@@ -802,7 +738,7 @@ class LaminasDbAdapter implements MapperInterface
     /**
      * Retorna se deve retornar os registros marcados como removidos
      *
-     * @return boolean
+     * @return bool
      */
     public function getShowDeleted(): bool
     {
@@ -812,7 +748,7 @@ class LaminasDbAdapter implements MapperInterface
     /**
      * Define se deve retornar os registros marcados como removidos
      *
-     * @param boolean $showDeleted
+     * @param bool $showDeleted
      *
      * @return self
      */
@@ -825,7 +761,7 @@ class LaminasDbAdapter implements MapperInterface
 
     /**
      * @param bool $asObject
-     * @return ArrayObject|string
+     * @return stdClass|string
      */
     public function getHydratorEntity($asObject = true)
     {
@@ -838,7 +774,7 @@ class LaminasDbAdapter implements MapperInterface
             return new $hydrator();
         }
 
-        return new ArrayObject();
+        return new stdClass();
     }
 
     /**
@@ -859,7 +795,7 @@ class LaminasDbAdapter implements MapperInterface
      * @param array $set Dados a serem atualizados
      * @param int|array $key Chave do registro a ser alterado
      *
-     * @return boolean
+     * @return int
      */
     public function update(array $set, $key)
     {
@@ -875,7 +811,7 @@ class LaminasDbAdapter implements MapperInterface
 
         // Cria um objeto para conseguir usar o hydrator
         if (is_array($set)) {
-            $set = new ArrayObject($set);
+            $set = new stdClass($set);
         }
 
         // Recupera os dados existentes
@@ -891,13 +827,13 @@ class LaminasDbAdapter implements MapperInterface
         $set = $hydrator->extract($set);
 
         //@todo Quem deveria fazer isso é o hydrator!
-       /* if ($row instanceof Metadata\ArrayObject) {
-            $row = $row->toArray();
-            if (isset($row['metadata'])) {
-                $row[$row->getMappedKeyname('metadata', true)] = $row['metadata'];
-                unset($row['metadata']);
-            }
-        }*/
+        /* if ($row instanceof Metadata\stdClass) {
+             $row = $row->toArray();
+             if (isset($row['metadata'])) {
+                 $row[$row->getMappedKeyname('metadata', true)] = $row['metadata'];
+                 unset($row['metadata']);
+             }
+         }*/
 
         // Remove os campos vazios
         foreach ($set as $field => $value) {
@@ -988,12 +924,12 @@ class LaminasDbAdapter implements MapperInterface
 
     public function getDefaultOrder(): ?array
     {
-        return $this->order;
+        return $this->defaultOrder;
     }
 
     public function setDefaultOrder(array $order): LaminasDbAdapter
     {
-        $this->order = $order;
+        $this->defaultOrder = $order;
         return $this;
     }
 
@@ -1005,6 +941,17 @@ class LaminasDbAdapter implements MapperInterface
     public function setUseHydrateResultSet(bool $useHydrateResultSet): LaminasDbAdapter
     {
         $this->useHydrateResultSet = $useHydrateResultSet;
+        return $this;
+    }
+
+    public function getTableJoin(): array
+    {
+        return $this->tableJoin;
+    }
+
+    public function setTableJoin(array $tableJoin): self
+    {
+        $this->tableJoin = $tableJoin;
         return $this;
     }
 }
