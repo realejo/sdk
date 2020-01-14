@@ -2,6 +2,7 @@
 
 namespace RealejoTest\Sdk\Enum;
 
+use InvalidArgumentException;
 use PHPUnit\Framework\TestCase;
 
 class EnumFlaggedTest extends TestCase
@@ -465,22 +466,18 @@ class EnumFlaggedTest extends TestCase
         $this->assertEquals(EnumFlaggedConcrete::WRITE, $enum->getValue());
     }
 
-    /**
-     * @expectedExceptionMessage Value '123' is not valid.
-     * @expectedException \InvalidArgumentException
-     */
     public function testAddException(): void
     {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage("Value '123' is not valid.");
         $enum = new EnumFlaggedConcrete();
         $enum->add(123);
     }
 
-    /**
-     * @expectedExceptionMessage Value '123' is not valid.
-     * @expectedException \InvalidArgumentException
-     */
     public function testRemoveException(): void
     {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage("Value '123' is not valid.");
         $enum = new EnumFlaggedConcrete();
         $enum->remove(123);
     }

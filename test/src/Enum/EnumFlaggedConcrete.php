@@ -10,7 +10,7 @@ class EnumFlaggedConcrete extends EnumFlagged
     public const WRITE = 1 << 1; // 2
     public const READ = 1 << 2; // 4
 
-    static protected $constDescription = [
+    protected static $constDescription = [
         self::EXECUTE => ['x', 'execute'],
         self::WRITE => 'w',
         self::READ => 'r',

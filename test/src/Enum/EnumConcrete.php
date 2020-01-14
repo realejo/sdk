@@ -6,12 +6,12 @@ use Realejo\Sdk\Enum\Enum;
 
 final class EnumConcrete extends Enum
 {
-    const STRING1 = 'S';
-    const STRING2 = 'X';
-    const NUMERIC1 = 666;
-    const NUMERIC2 = 999;
+    public const STRING1 = 'S';
+    public const STRING2 = 'X';
+    public const NUMERIC1 = 666;
+    public const NUMERIC2 = 999;
 
-    static protected $constDescription = [
+    protected static $constDescription = [
         'S' => 'string1',
         'X' => ['string2', 'string with description'],
         666 => 'numeric1',
