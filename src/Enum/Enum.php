@@ -1,6 +1,6 @@
 <?php
 
-namespace Realejo\Enum;
+namespace Realejo\Sdk\Enum;
 
 use InvalidArgumentException;
 
