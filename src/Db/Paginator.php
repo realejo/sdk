@@ -10,27 +10,30 @@
 
 namespace Realejo\Sdk\Db;
 
-use Zend\Paginator\Adapter\DbSelect;
-use Zend\Paginator\Paginator as ZendPaginator;
+use Laminas\Db\Sql\Select;
+use Laminas\Db\Sql\Sql;
+use Laminas\Paginator\Adapter\DbSelect;
+use Laminas\Paginator\Paginator as LaminasPaginator;
+use ReflectionObject;
 
-class Paginator extends ZendPaginator
+class Paginator extends LaminasPaginator
 {
     protected function _getCacheInternalId()
     {
         $adapter = $this->getAdapter();
 
         if ($adapter instanceof DbSelect) {
-            $reflection = new \ReflectionObject($adapter);
+            $reflection = new ReflectionObject($adapter);
 
             /**
-             * @var  $select \Zend\Db\Sql\Select
+             * @var  $select Select
              */
             $property = $reflection->getProperty('select');
             $property->setAccessible(true);
             $select = $property->getValue($adapter);
 
             /**
-             * @var  $sql \Zend\Db\Sql\Sql
+             * @var  $sql Sql
              */
             $property = $reflection->getProperty('sql');
             $property->setAccessible(true);

@@ -6,77 +6,61 @@ class PaginatorOptions
 {
 
     /**
-     * @var number
+     * @var int
      */
     protected $pageRange = 10;
 
     /**
-     * @var number
+     * @var int
      */
     protected $currentPageNumber = 1;
 
     /**
-     * @var number
+     * @var int
      */
     protected $itemCountPerPage = 10;
 
     /**
-     * @param number $pageRange
-     * @return PaginatorOptions
+     * @param int $pageRange
+     * @return self
      */
-    public function setPageRange($pageRange)
+    public function setPageRange(int $pageRange): self
     {
         $this->pageRange = $pageRange;
-
-        // Mantem a cadeia
         return $this;
     }
 
     /**
-     * @param number $currentPageNumber
-     * @return PaginatorOptions
+     * @param int $currentPageNumber
+     * @return self
      */
-    public function setCurrentPageNumber($currentPageNumber)
+    public function setCurrentPageNumber(int $currentPageNumber): self
     {
         $this->currentPageNumber = $currentPageNumber;
-
-        // Mantem a cadeia
         return $this;
     }
 
     /**
-     * @param number $itemCountPerPage
-     * @return PaginatorOptions
+     * @param int $itemCountPerPage
+     * @return self
      */
-    public function setItemCountPerPage($itemCountPerPage)
+    public function setItemCountPerPage(int $itemCountPerPage): self
     {
         $this->itemCountPerPage = $itemCountPerPage;
-
-        // Mantem a cadeia
         return $this;
     }
 
-    /**
-     * @return number
-     */
-    public function getPageRange()
+    public function getPageRange(): int
     {
         return $this->pageRange;
     }
 
-    /**
-     * @return number
-     */
-    public function getCurrentPageNumber()
+    public function getCurrentPageNumber(): int
     {
         return $this->currentPageNumber;
     }
 
-    /**
-     *
-     * @return number
-     */
-    public function getItemCountPerPage()
+    public function getItemCountPerPage(): int
     {
         return $this->itemCountPerPage;
     }

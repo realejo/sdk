@@ -1,22 +1,15 @@
 <?php
-/**
- * Gerenciador de cache utilizado pelo App_Model
- *
- * Ele cria automaticamente a pasta de cache, dentro de data/cache, baseado no nome da classe
- *
- * @link      http://github.com/realejo/libraray-zf2
- * @copyright Copyright (c) 2014 Realejo (http://realejo.com.br)
- * @license   http://unlicense.org
- */
 
-namespace Realejo\Cache;
+namespace Realejo\Sdk\Cache;
 
-use Zend\Cache\StorageFactory;
+use Laminas\Cache\StorageFactory;
+use RuntimeException;
+use Laminas\Cache\Storage\Adapter\Filesystem;
 
 class CacheService
 {
     /**
-     * @var \Zend\Cache\Storage\Adapter\Filesystem
+     * @var Filesystem
      */
     protected $cache;
 
@@ -26,7 +19,7 @@ class CacheService
      * Configura o cache
      *
      * @param string $class
-     * @return \Zend\Cache\Storage\Adapter\Filesystem
+     * @return Filesystem
      */
     public function getFrontend($class = '')
     {
@@ -36,26 +29,28 @@ class CacheService
 
         if (!empty($path)) {
             // Configura o cache
-            $cacheService->cache = StorageFactory::factory([
-                'adapter' => [
-                    'name' => 'filesystem',
+            $cacheService->cache = StorageFactory::factory(
+                [
+                    'adapter' => [
+                        'name' => 'filesystem',
+                        'options' => [
+                            'cache_dir' => $path,
+                            'namespace' => $this->getNamespace($class),
+                            'dir_level' => 0,
+                        ],
+                    ],
+                    'plugins' => [
+                        // Don't throw exceptions on cache errors
+                        'exception_handler' => [
+                            'throw_exceptions' => false
+                        ],
+                        'Serializer'
+                    ],
                     'options' => [
-                        'cache_dir' => $path,
-                        'namespace' => $this->getNamespace($class),
-                        'dir_level' => 0,
-                    ],
-                ],
-                'plugins' => [
-                    // Don't throw exceptions on cache errors
-                    'exception_handler' => [
-                        'throw_exceptions' => false
-                    ],
-                    'Serializer'
-                ],
-                'options' => [
-                    'ttl' => 86400
+                        'ttl' => 86400
+                    ]
                 ]
-            ]);
+            );
         }
 
         return $cacheService->cache;
@@ -68,7 +63,7 @@ class CacheService
      *
      * @return string
      */
-    public function getNamespace($class)
+    public function getNamespace(string $class): string
     {
         return str_replace(['_', '\\', '/'], '.', strtolower($class));
     }
@@ -76,7 +71,7 @@ class CacheService
     /**
      * Apaga o cache de consultas do model
      */
-    public function clean()
+    public function clean(): void
     {
         // Apaga o cache
         $this->getFrontend()->flush();
@@ -86,14 +81,14 @@ class CacheService
      * Retorna a pasta raiz de todos os caches
      * @return string
      */
-    public function getCacheRoot()
+    public function getCacheRoot(): string
     {
         $cacheRoot = $this->cacheDir;
 
         // Verifica se a pasta de cache existe
         if ($cacheRoot === null) {
             if (defined('APPLICATION_DATA') === false) {
-                throw new \RuntimeException('A pasta raiz do data não está definido em APPLICATION_DATA');
+                throw new RuntimeException('A pasta raiz do data não está definido em APPLICATION_DATA');
             }
             $cacheRoot = APPLICATION_DATA . '/cache';
         }
@@ -101,7 +96,9 @@ class CacheService
         // Verifica se a pasta do cache existe
         if (!file_exists($cacheRoot)) {
             $oldUMask = umask(0);
-            mkdir($cacheRoot, 0777, true);
+            if (!mkdir($cacheRoot, 0777, true) && !is_dir($cacheRoot)) {
+                throw new \RuntimeException(sprintf('Directory "%s" was not created', $cacheRoot));
+            }
             umask($oldUMask);
         }
 
@@ -117,7 +114,7 @@ class CacheService
      *
      * @return string
      */
-    public function getCachePath($class = '')
+    public function getCachePath($class = ''): string
     {
         // Define a pasta de cache
         $cachePath = $this->getCacheRoot() . '/' . str_replace(['_', '\\'], '/', strtolower($class));
@@ -125,12 +122,14 @@ class CacheService
         // Verifica se a pasta do cache existe
         if (!file_exists($cachePath)) {
             $oldumask = umask(0);
-            mkdir($cachePath, 0777, true);
+            if (!mkdir($cachePath, 0777, true) && !is_dir($cachePath)) {
+                throw new \RuntimeException(sprintf('Directory "%s" was not created', $cachePath));
+            }
             umask($oldumask);
         }
 
         if (!is_writable($cachePath)) {
-            throw new \RuntimeException("Pasta $cachePath nẽo tem permissão de escrita");
+            throw new RuntimeException("Pasta $cachePath nẽo tem permissão de escrita");
         }
 
         // Retorna a pasta de cache
@@ -143,12 +142,12 @@ class CacheService
      *
      * @param string $path
      */
-    public function completeCleanUp($path)
+    public function completeCleanUp($path): void
     {
         if (is_dir($path)) {
             $results = scandir($path);
             foreach ($results as $result) {
-                if ($result === '.' or $result === '..') {
+                if ($result === '.' || $result === '..') {
                     continue;
                 }
 
@@ -163,7 +162,7 @@ class CacheService
         }
     }
 
-    public function setCacheDir($cacheDir)
+    public function setCacheDir($cacheDir): void
     {
         $this->cacheDir = $cacheDir;
     }

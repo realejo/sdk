@@ -1,6 +1,6 @@
 <?php
 
-namespace Realejo\Cache;
+namespace Realejo\Sdk\Cache;
 
 use Interop\Container\ContainerInterface;
 use Laminas\ServiceManager\Exception\ServiceNotCreatedException;

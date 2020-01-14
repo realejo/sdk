@@ -387,14 +387,7 @@ class LaminasDbAdapter implements AdapterInterface
         }
 
         // Remove os campos vazios
-        foreach ($set as $field => $value) {
-            if (is_string($value)) {
-                $set[$field] = trim($value);
-                if ($set[$field] === '') {
-                    $set[$field] = null;
-                }
-            }
-        }
+        $set = $this->clearEmptyString($set);
 
         // Grava o set no BD
         $this->lastInsertSet = $set;
@@ -402,20 +395,10 @@ class LaminasDbAdapter implements AdapterInterface
 
         // Recupera a chave gerada do registro
         if (is_array($this->getTableKey())) {
-            $rightKeys = $this->getTableKey();
+            $currentKeys = $this->getTableKey();
             $key = [];
-            foreach ($rightKeys as $k => $type) {
-                if (is_array($k)) {
-                    foreach ($k as $value) {
-                        // Grava a chave como integer
-                        if (is_numeric($value) || $type === self::KEY_INTEGER) {
-                            $key[$value] = $set[$value];
-                            // Grava a chave como string
-                        } elseif ($type === self::KEY_STRING) {
-                            $key[$value] = $set[$value];
-                        }
-                    }
-                } elseif (isset($set[$k])) {
+            foreach ($currentKeys as $k => $type) {
+                if (isset($set[$k])) {
                     $key[$k] = $set[$k];
                 } else {
                     $key = false;
@@ -479,14 +462,7 @@ class LaminasDbAdapter implements AdapterInterface
          }*/
 
         // Remove os campos vazios
-        foreach ($set as $field => $value) {
-            if (is_string($value)) {
-                $set[$field] = trim($value);
-                if ($set[$field] === '') {
-                    $set[$field] = null;
-                }
-            }
-        }
+        $set = $this->clearEmptyString($set);
 
         // Verifica se há o que atualizar
         $diff = $this->array_diff_assoc_recursive($set, $row);
@@ -502,13 +478,8 @@ class LaminasDbAdapter implements AdapterInterface
             $this->lastUpdateDiff[$field] = [$row[$field], $value];
         }
 
-        // Verifica se há algo para atualizar
-        if (empty($diff)) {
-            return false;
-        }
-
-        // Salva os dados alterados e retorna que o registro foi alterado
-        return $this->getTableGateway()->update($diff, $this->getKeyWhere($key));
+        // Se tiver algo para alterar, salva os dados alterados e retorna que o registro foi alterado
+        return empty($diff) ? 0 : $this->getTableGateway()->update($diff, $this->getKeyWhere($key));
     }
 
     public function getHydrator(): AbstractHydrator
@@ -932,5 +903,19 @@ class LaminasDbAdapter implements AdapterInterface
     {
         $this->tableJoin = $tableJoin;
         return $this;
+    }
+
+    private function clearEmptyString(array $set): array
+    {
+        foreach ($set as $field => $value) {
+            if (is_string($value)) {
+                $set[$field] = trim($value);
+                if ($set[$field] === '') {
+                    $set[$field] = null;
+                }
+            }
+        }
+
+        return $set;
     }
 }

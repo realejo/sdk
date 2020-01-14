@@ -2,35 +2,47 @@
 
 namespace Realejo\Sdk\Db;
 
-use Psr\Container\ContainerInterface;
-use Realejo\Cache\CacheService;
-use Realejo\Paginator\Paginator;
-use Realejo\Stdlib\ArrayObject;
+use InvalidArgumentException;
 use Laminas\Cache\Storage as CacheStorage;
 use Laminas\Db\ResultSet\HydratingResultSet;
 use Laminas\Db\Sql\Select;
 use Laminas\Paginator\Adapter\DbSelect;
 use Laminas\ServiceManager\ServiceManager;
+use Laminas\Stdlib\ArrayObject;
+use Psr\Container\ContainerInterface;
+use Realejo\Sdk\Cache\CacheService;
 
 class AbstractRepository
 {
+    /**
+     * Nome da tabela a ser usada
+     * @var string
+     */
+    protected $tableName;
+
+    /**
+     * Define o nome da chave
+     * @var string|array
+     */
+    protected $tableKey;
+
     /**
      * @var LaminasDbAdapter
      */
     protected $adapter;
 
     /**
-     * @var string
+     * @var LaminasDbAdapter|string
      */
-    protected $mapperClass = null;
+    protected $dbAdapter = LaminasDbAdapter::class;
 
     /**
-     * @var boolean
+     * @var bool
      */
     protected $useCache = false;
 
     /**
-     * @var Filesystem
+     * @var CacheStorage\Adapter\Filesystem
      */
     protected $cache;
 
@@ -63,14 +75,14 @@ class AbstractRepository
      *
      * @return ArrayObject[] | null
      */
-    public function findAll(array $where = [], array $order = [], int $count = null, int $offset = null) :?array
+    public function findAll(array $where = [], array $order = [], int $count = null, int $offset = null): ?array
     {
         // Cria a assinatura da consulta
         $cacheKey = 'findAll'
             . $this->getUniqueCacheKey()
             . md5(
-                $this->getMapper()->getSelect($this->getWhere($where), $order, $count, $offset)->getSqlString(
-                    $this->getMapper()->getTableGateway()->getAdapter()->getPlatform()
+                $this->getDbAdapter()->getSelect($this->getWhere($where), $order, $count, $offset)->getSqlString(
+                    $this->getDbAdapter()->getTableGateway()->getAdapter()->getPlatform()
                 )
             );
 
@@ -79,7 +91,7 @@ class AbstractRepository
             return $this->getCache()->getItem($cacheKey);
         }
 
-        $findAll = $this->getMapper()->fetchAll($where, $order, $count, $offset);
+        $findAll = $this->getDbAdapter()->fetchAll($where, $order, $count, $offset);
 
         // Grava a consulta no cache
         if ($this->getUseCache()) {
@@ -94,35 +106,27 @@ class AbstractRepository
         return str_replace('\\', '_', get_class($this));
     }
 
-    public function getMapper(): MapperAbstract
+    public function getDbAdapter(): LaminasDbAdapter
     {
-        if (!isset($this->mapper)) {
-            if (!isset($this->mapperClass)) {
-                throw new RuntimeException('Mapper class not defined at ' . get_class($this));
-            }
-            $this->mapper = new $this->mapperClass();
-            $this->mapper->setCache($this->getCache());
-            if ($this->hasServiceLocator()) {
-                $this->mapper->setServiceLocator($this->getServiceLocator());
-            }
+        if (is_string($this->dbAdapter)) {
+            $this->dbAdapter = new $this->dbAdapter($this->tableName, $this->tableKey);
         }
 
-        return $this->mapper;
+        return $this->dbAdapter;
     }
 
     /**
-     * @param MapperAbstract|string $mapper
+     * @param LaminasDbAdapter|string $dbAdapter
      */
-    public function setMapper($mapper):void
+    public function setDbAdapter($dbAdapter): void
     {
-        if (is_string($mapper)) {
-            $this->mapperClass = $mapper;
-            $this->mapper = null;
-        } elseif ($mapper instanceof MapperAbstract) {
-            $this->mapper = $mapper;
-            $this->mapperClass = get_class($mapper);
+        if (is_string($dbAdapter)) {
+            unset($this->dbAdapter);
+            $this->dbAdapter = $dbAdapter;
+        } elseif ($dbAdapter instanceof LaminasDbAdapter) {
+            $this->dbAdapter = $dbAdapter;
         } else {
-            throw new InvalidArgumentException('Mapper invalido em ' . get_class($this) . '::setMapper()');
+            throw new \InvalidArgumentException('Db Adapter invalido');
         }
     }
 
@@ -144,15 +148,15 @@ class AbstractRepository
 
     /**
      * @param CacheStorage\StorageInterface $cache
-     * @return ServiceAbstract
+     * @return self
      */
-    public function setCache(CacheStorage\StorageInterface $cache)
+    public function setCache(CacheStorage\StorageInterface $cache): self
     {
         $this->cache = $cache;
         return $this;
     }
 
-    public function hasServiceLocator()
+    public function hasServiceLocator(): bool
     {
         return null !== $this->serviceLocator;
     }
@@ -160,16 +164,16 @@ class AbstractRepository
     /**
      * @return ContainerInterface
      */
-    public function getServiceLocator()
+    public function getServiceLocator(): ContainerInterface
     {
         return $this->serviceLocator;
     }
 
     /**
      * @param ContainerInterface $serviceLocator
-     * @return ServiceAbstract
+     * @return self
      */
-    public function setServiceLocator(ContainerInterface $serviceLocator)
+    public function setServiceLocator(ContainerInterface $serviceLocator): self
     {
         $this->serviceLocator = $serviceLocator;
 
@@ -178,64 +182,21 @@ class AbstractRepository
 
     /**
      * Retorna se deve usar o cache
-     * @return boolean
+     * @return bool
      */
-    public function getUseCache()
+    public function getUseCache(): bool
     {
         return $this->useCache;
     }
 
     /**
      * Define se deve usar o cache
-     * @param boolean $useCache
-     * @return ServiceAbstract
+     * @param bool $useCache
+     * @return self
      */
-    public function setUseCache($useCache)
+    public function setUseCache($useCache): self
     {
         $this->useCache = $useCache;
-        $this->getMapper()->setUseCache($useCache);
-        return $this;
-    }
-
-    /**
-     *
-     * @return string
-     */
-    public function getHtmlSelectOption()
-    {
-        return $this->htmlSelectOption;
-    }
-
-    /**
-     *
-     * @param string $htmlSelectOption
-     *
-     * @return self
-     */
-    public function setHtmlSelectOption($htmlSelectOption)
-    {
-        $this->htmlSelectOption = $htmlSelectOption;
-        return $this;
-    }
-
-    /**
-     *
-     * @return array|string
-     */
-    public function getHtmlSelectOptionData()
-    {
-        return $this->htmlSelectOptionData;
-    }
-
-    /**
-     *
-     * @param array|string $htmlSelectOptionData
-     *
-     * @return self
-     */
-    public function setHtmlSelectOptionData($htmlSelectOptionData)
-    {
-        $this->htmlSelectOptionData = $htmlSelectOptionData;
         return $this;
     }
 
@@ -253,19 +214,19 @@ class AbstractRepository
         // Define se é a chave da tabela, assim como é verificado no Mapper::fetchRow()
         if (is_numeric($where) || is_string($where)) {
             // Verifica se há chave definida
-            if (empty($this->getMapper()->getTableKey())) {
-                throw new InvalidArgumentException('Chave não definida em ' . get_class($this));
+            if (empty($this->getDbAdapter()->getTableKey())) {
+                throw new InvalidArgumentException('Chave não definida');
             }
 
             // Verifica se é uma chave múltipla ou com cast
-            if (is_array($this->getMapper()->getTableKey())) {
+            if (is_array($this->getDbAdapter()->getTableKey())) {
                 // Verifica se é uma chave simples com cast
-                if (count($this->getMapper()->getTableKey()) !== 1) {
+                if (count($this->getDbAdapter()->getTableKey()) !== 1) {
                     throw new InvalidArgumentException('Não é possível acessar chaves múltiplas informando apenas uma');
                 }
-                $where = [$this->getMapper()->getTableKey(true) => $where];
+                $where = [$this->getDbAdapter()->getTableKey(true) => $where];
             } else {
-                $where = [$this->getMapper()->getTableKey() => $where];
+                $where = [$this->getDbAdapter()->getTableKey() => $where];
             }
         }
 
@@ -273,8 +234,8 @@ class AbstractRepository
         $cacheKey = 'findOne'
             . $this->getUniqueCacheKey()
             . md5(
-                $this->getMapper()->getSelect($where, $order)->getSqlString(
-                    $this->getMapper()->getTableGateway()->getAdapter()->getPlatform()
+                $this->getDbAdapter()->getSelect($where, $order)->getSqlString(
+                    $this->getDbAdapter()->getTableGateway()->getAdapter()->getPlatform()
                 )
             );
 
@@ -283,7 +244,7 @@ class AbstractRepository
             return $this->getCache()->getItem($cacheKey);
         }
 
-        $findOne = $this->getMapper()->fetchRow($where, $order);
+        $findOne = $this->getDbAdapter()->fetchRow($where, $order);
 
         // Grava a consulta no cache
         if ($this->getUseCache()) {
@@ -293,20 +254,10 @@ class AbstractRepository
         return $findOne;
     }
 
-    /**
-     * Consultas especiais do service
-     *
-     * @param array $where
-     * @return array
-     */
-    public function getWhere($where)
+    public function getWhere(array $where): array
     {
         return $where;
     }
-
-    /**
-     * CONTROLE DE CACHE
-     */
 
     /**
      * Retorna vários registros associados pela chave
@@ -318,15 +269,15 @@ class AbstractRepository
      *
      * @return ArrayObject[] | null
      */
-    public function findAssoc($where = null, $order = null, $count = null, $offset = null)
+    public function findAssoc($where = null, $order = null, $count = null, $offset = null): ?array
     {
         // Cria a assinatura da consulta
         $cacheKey = 'findAssoc'
             . $this->getUniqueCacheKey()
-            . '_key' . $this->getMapper()->getTableKey(true) . '_'
+            . '_key' . $this->getDbAdapter()->getTableKey(true) . '_'
             . md5(
-                $this->getMapper()->getSelect($this->getWhere($where), $order, $count, $offset)->getSqlString(
-                    $this->getMapper()->getTableGateway()->getAdapter()->getPlatform()
+                $this->getDbAdapter()->getSelect($this->getWhere($where), $order, $count, $offset)->getSqlString(
+                    $this->getDbAdapter()->getTableGateway()->getAdapter()->getPlatform()
                 )
             );
 
@@ -335,11 +286,11 @@ class AbstractRepository
             return $this->getCache()->getItem($cacheKey);
         }
 
-        $fetchAll = $this->getMapper()->fetchAll($this->getWhere($where), $order, $count, $offset);
+        $fetchAll = $this->getDbAdapter()->fetchAll($this->getWhere($where), $order, $count, $offset);
         $findAssoc = [];
         if (!empty($fetchAll)) {
             foreach ($fetchAll as $row) {
-                $findAssoc[$row[$this->getMapper()->getTableKey(true)]] = $row;
+                $findAssoc[$row[$this->getDbAdapter()->getTableKey(true)]] = $row;
             }
         }
 
@@ -359,7 +310,7 @@ class AbstractRepository
      * @param int $count OPTIONAL An SQL LIMIT count.
      * @param int $offset OPTIONAL An SQL LIMIT offset.
      *
-     * @return Paginator
+     * @return Paginator|ArrayObject[]|null
      */
     public function findPaginated($where = null, $order = null, $count = null, $offset = null)
     {
@@ -367,21 +318,24 @@ class AbstractRepository
         if ($where instanceof Select) {
             $select = $where;
         } else {
-            $select = $this->getMapper()->getSelect($this->getWhere($where), $order, $count, $offset);
+            $select = $this->getDbAdapter()->getSelect($this->getWhere($where), $order, $count, $offset);
         }
 
         // Verifica se deve usar o cache
         $cacheKey = 'findPaginated'
             . $this->getUniqueCacheKey()
-            . md5($select->getSqlString($this->getMapper()->getTableGateway()->getAdapter()->getPlatform()));
+            . md5($select->getSqlString($this->getDbAdapter()->getTableGateway()->getAdapter()->getPlatform()));
 
         // Verifica se tem no cache
         if ($this->getUseCache() && $this->getCache()->hasItem($cacheKey)) {
             return $this->getCache()->getItem($cacheKey);
         }
 
-        $resultSet = new HydratingResultSet($this->getMapper()->getHydrator(), $this->getMapper()->getHydratorEntity());
-        $adapter = new DbSelect($select, $this->getMapper()->getTableGateway()->getAdapter(), $resultSet);
+        $resultSet = new HydratingResultSet(
+            $this->getDbAdapter()->getHydrator(),
+            $this->getDbAdapter()->getEntity()
+        );
+        $adapter = new DbSelect($select, $this->getDbAdapter()->getTableGateway()->getAdapter(), $resultSet);
 
         $findPaginated = new Paginator($adapter);
 
@@ -419,7 +373,7 @@ class AbstractRepository
      */
     public function create($set)
     {
-        return $this->getMapper()->insert($set);
+        return $this->getDbAdapter()->insert($set);
     }
 
     /**
@@ -432,24 +386,24 @@ class AbstractRepository
      */
     public function update($set, $key)
     {
-        return $this->getMapper()->update($set, $key);
+        return $this->getDbAdapter()->update($set, $key);
     }
 
     /**
-     * @return boolean
+     * @return bool
      */
     public function getUseJoin()
     {
-        return $this->getMapper()->getUseJoin();
+        return $this->getDbAdapter()->getUseJoin();
     }
 
     /**
-     * @param boolean $useJoin
+     * @param bool $useJoin
      * @return ServiceAbstract
      */
     public function setUseJoin($useJoin)
     {
-        $this->getMapper()->setUseJoin($useJoin);
+        $this->getDbAdapter()->setUseJoin($useJoin);
         return $this;
     }
 
@@ -461,25 +415,25 @@ class AbstractRepository
     public function cleanCache()
     {
         $this->getCache()->flush();
-        $this->getMapper()->getCache()->flush();
+        $this->getDbAdapter()->getCache()->flush();
     }
 
     /**
-     * @return boolean
+     * @return bool
      */
     public function getAutoCleanCache()
     {
-        return $this->getMapper()->getAutoCleanCache();
+        return $this->getDbAdapter()->getAutoCleanCache();
     }
 
     /**
-     * @param boolean $autoCleanCache
+     * @param bool $autoCleanCache
      *
      * @return ServiceAbstract
      */
     public function setAutoCleanCache($autoCleanCache)
     {
-        $this->getMapper()->setAutoCleanCache($autoCleanCache);
+        $this->getDbAdapter()->setAutoCleanCache($autoCleanCache);
 
         return $this;
     }
@@ -499,5 +453,37 @@ class AbstractRepository
         }
 
         return $this->getServiceLocator()->get($class);
+    }
+
+    /**
+     * @return string
+     */
+    public function getTableName(): string
+    {
+        return $this->tableName;
+    }
+
+    /**
+     * @param string $tableName
+     */
+    public function setTableName(string $tableName): void
+    {
+        $this->tableName = $tableName;
+    }
+
+    /**
+     * @return array|string
+     */
+    public function getTableKey()
+    {
+        return $this->tableKey;
+    }
+
+    /**
+     * @param array|string $tableKey
+     */
+    public function setTableKey($tableKey): void
+    {
+        $this->tableKey = $tableKey;
     }
 }
