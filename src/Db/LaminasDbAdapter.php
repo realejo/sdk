@@ -2,6 +2,7 @@
 
 namespace Realejo\Sdk\Db;
 
+use ArrayIterator;
 use InvalidArgumentException;
 use Laminas\Db\Adapter\Adapter;
 use Laminas\Db\ResultSet\HydratingResultSet;
@@ -9,7 +10,9 @@ use Laminas\Db\Sql\Expression;
 use Laminas\Db\Sql\Predicate;
 use Laminas\Db\Sql\Select;
 use Laminas\Db\TableGateway\TableGateway;
+use Laminas\Hydrator\AbstractHydrator;
 use Laminas\Hydrator\ArraySerializable;
+use Laminas\Stdlib\ArrayObject;
 use LogicException;
 use Psr\Container\ContainerInterface;
 use RuntimeException;
@@ -21,14 +24,14 @@ class LaminasDbAdapter implements AdapterInterface
     public const KEY_INTEGER = 'INTEGER';
 
     /**
-     * @var stdClass
+     * @var ArrayObject|stdClass
      */
-    protected $hydratorEntity;
+    protected $entity = ArrayObject::class;
 
     /**
-     * @var ArraySerializable
+     * @var AbstractHydrator
      */
-    protected $hydrator;
+    protected $hydrator = ArraySerializable::class;
 
     /**
      * @var bool
@@ -108,17 +111,12 @@ class LaminasDbAdapter implements AdapterInterface
 
     protected $lastInsertSet;
     protected $lastInsertKey;
-    protected $lastUpdateSet;
+    protected $lastUpdateSetAfter;
+    protected $lastUpdateSetBefore;
     protected $lastUpdateDiff;
     protected $lastUpdateKey;
     protected $lastDeleteKey;
 
-    /**
-     *
-     * @param string $tableName Nome da tabela a ser usada
-     * @param string|array $tableKey Nome ou array de chaves a serem usadas
-     *
-     */
     public function __construct(string $tableName = null, $tableKey = null)
     {
         if (!empty($tableName)) {
@@ -174,7 +172,7 @@ class LaminasDbAdapter implements AdapterInterface
         // Verifica se é para retorna apenas a primeira da chave multipla
         if (is_array($key) && $returnSingle === true) {
             if (is_array($key)) {
-                foreach ($key as $type => $keyName) {
+                foreach ($key as $keyName => $type) {
                     $key = $keyName;
                     break;
                 }
@@ -187,7 +185,27 @@ class LaminasDbAdapter implements AdapterInterface
     public function setTableKey($key): self
     {
         if (empty($key) && !is_string($key) && !is_array($key)) {
-            throw new InvalidArgumentException('Chave inválida em ' . get_class($this));
+            throw new InvalidArgumentException('Invalid key');
+        }
+
+        if (is_array($key)) {
+            $newKey = [];
+            foreach ($key as $name => $type) {
+                if (is_numeric($name)) {
+                    $name = $type;
+                    $type = self::KEY_INTEGER;
+                }
+                if (!in_array($type, [self::KEY_INTEGER, self::KEY_STRING], true)) {
+                    throw new InvalidArgumentException('Invalid key definition');
+                }
+                if (!is_string($name)) {
+                    throw new InvalidArgumentException('Invalid key definition');
+                }
+                $newKey[$name] = $type;
+            }
+            $key = $newKey;
+        } elseif (!is_string($key)) {
+            throw new InvalidArgumentException('Invalid key definition');
         }
 
         $this->tableKey = $key;
@@ -272,47 +290,29 @@ class LaminasDbAdapter implements AdapterInterface
             throw new LogicException('Chave mal definida em ' . get_class($this));
         }
 
-        $where = [];
-        $usedKeys = [];
+        $where = $usedKeys = [];
 
         // Verifica as chaves definidas
-        foreach ($this->getTableKey() as $type => $definedKey) {
+        foreach ($this->getTableKey() as $keyName => $type) {
             // Verifica se é uma chave única com cast
             if (!is_array($key) && count($this->getTableKey()) === 1) {
-                // Grava a chave como integer
-                if (is_numeric($type) || $type === self::KEY_INTEGER) {
-                    $where[] = "$definedKey = $key";
-                    // Grava a chave como string
+                if ($type === self::KEY_INTEGER) {
+                    $where = "`$keyName` = $key";
+                }
+                if ($type === self::KEY_STRING) {
+                    $where = "`$keyName` = '$key'";
+                }
+                return "($where)";
+            }
+
+            // Verifica se a chave definida foi informada
+            if (isset($key[$keyName])) {
+                if ($type === self::KEY_INTEGER) {
+                    $where[] = "$keyName = {$key[$keyName]}";
                 } elseif ($type === self::KEY_STRING) {
-                    $where[] = "$definedKey = '$key'";
+                    $where[] = "$keyName = '{$key[$keyName]}'";
                 }
-
-                $usedKeys[] = $definedKey;
-            } // Verifica se a chave definida foi informada
-            elseif (is_array($key) && !is_array($definedKey) && isset($key[$definedKey])) {
-                // Grava a chave como integer
-                if (is_numeric($type) || $type === self::KEY_INTEGER) {
-                    $where[] = "$definedKey = {$key[$definedKey]}";
-                    // Grava a chave como string
-                } elseif ($type === self::KEY_STRING) {
-                    $where[] = "$definedKey = '{$key[$definedKey]}'";
-                }
-
-                // Marca a chave com usada
-                $usedKeys[] = $definedKey;
-            } elseif (is_array($key) && is_array($definedKey)) {
-                foreach ($definedKey as $value) {
-                    // Grava a chave como integer
-                    if (is_numeric($value) || $type === self::KEY_INTEGER) {
-                        $where[] = "$value = {$key[$value]}";
-                        // Grava a chave como string
-                    } elseif ($type === self::KEY_STRING) {
-                        $where[] = "$value = '{$key[$value]}'";
-                    }
-                }
-
-                // Marca a chave com usada
-                $usedKeys[] = $definedKey;
+                $usedKeys[] = $keyName;
             }
         }
 
@@ -370,26 +370,21 @@ class LaminasDbAdapter implements AdapterInterface
     /**
      * Grava um novo registro
      *
-     * @param array $set
+     * @param array|object $set
      * @return int|array boolean
      *
      */
-    public function insert(array $set)
+    public function insert($set)
     {
         // Verifica se há algo a ser adicionado
         if (empty($set)) {
             return false;
         }
 
-        // Grava o ultimo set incluído para referencia
-        $this->lastInsertSet = $set;
         // Cria um objeto para conseguir usar o hydrator
-        if (is_array($set)) {
-            $set = new stdClass($set);
+        if (is_object($set)) {
+            $set = $this->getHydrator()->extract($set);
         }
-
-        $hydrator = $this->getHydrator();
-        $set = $hydrator->extract($set);
 
         // Remove os campos vazios
         foreach ($set as $field => $value) {
@@ -402,13 +397,14 @@ class LaminasDbAdapter implements AdapterInterface
         }
 
         // Grava o set no BD
+        $this->lastInsertSet = $set;
         $this->getTableGateway()->insert($set);
 
         // Recupera a chave gerada do registro
         if (is_array($this->getTableKey())) {
             $rightKeys = $this->getTableKey();
             $key = [];
-            foreach ($rightKeys as $type => $k) {
+            foreach ($rightKeys as $k => $type) {
                 if (is_array($k)) {
                     foreach ($k as $value) {
                         // Grava a chave como integer
@@ -419,13 +415,11 @@ class LaminasDbAdapter implements AdapterInterface
                             $key[$value] = $set[$value];
                         }
                     }
+                } elseif (isset($set[$k])) {
+                    $key[$k] = $set[$k];
                 } else {
-                    if (isset($set[$k])) {
-                        $key[$k] = $set[$k];
-                    } else {
-                        $key = false;
-                        break;
-                    }
+                    $key = false;
+                    break;
                 }
             }
         } elseif (isset($set[$this->getTableKey()])) {
@@ -444,23 +438,86 @@ class LaminasDbAdapter implements AdapterInterface
     }
 
     /**
-     * @return ArraySerializable
+     * Altera um registro
+     *
+     * @param array|object $set Dados a serem atualizados
+     * @param int|array $key Chave do registro a ser alterado
+     *
+     * @return int
      */
-    public function getHydrator()
+    public function update($set, $key): int
     {
-        return new ArraySerializable();
+        // Verifica se o código é válido
+        if (empty($key)) {
+            throw new InvalidArgumentException("Chave <b>'$key'</b> inválida");
+        }
+
+        // Recupera os dados existentes
+        $row = $this->fetchRow($key);
+        if ($row === null) {
+            return 0;
+        }
+        $row = $this->getHydrator()->extract($row);
+
+        // Cria um objeto para conseguir usar o hydrator
+        if (is_object($set)) {
+            $set = $this->getHydrator()->extract($set);
+        }
+
+        // Verifica se há algo para alterar
+        if (empty($set)) {
+            return 0;
+        }
+
+        //@todo Quem deveria fazer isso é o hydrator!
+        /* if ($row instanceof Metadata\stdClass) {
+             $row = $row->toArray();
+             if (isset($row['metadata'])) {
+                 $row[$row->getMappedKeyname('metadata', true)] = $row['metadata'];
+                 unset($row['metadata']);
+             }
+         }*/
+
+        // Remove os campos vazios
+        foreach ($set as $field => $value) {
+            if (is_string($value)) {
+                $set[$field] = trim($value);
+                if ($set[$field] === '') {
+                    $set[$field] = null;
+                }
+            }
+        }
+
+        // Verifica se há o que atualizar
+        $diff = $this->array_diff_assoc_recursive($set, $row);
+
+        // Grava os dados alterados para referencia
+        $this->lastUpdateSetBefore = $row;
+        $this->lastUpdateSetAfter = $set;
+        $this->lastUpdateKey = $key;
+
+        // Grava o que foi alterado
+        $this->lastUpdateDiff = [];
+        foreach ($diff as $field => $value) {
+            $this->lastUpdateDiff[$field] = [$row[$field], $value];
+        }
+
+        // Verifica se há algo para atualizar
+        if (empty($diff)) {
+            return false;
+        }
+
+        // Salva os dados alterados e retorna que o registro foi alterado
+        return $this->getTableGateway()->update($diff, $this->getKeyWhere($key));
     }
 
-    /**
-     * @param ArraySerializable $hydrator
-     *
-     * @return self
-     */
-    public function setHydrator(ArraySerializable $hydrator)
+    public function getHydrator(): AbstractHydrator
     {
-        if (empty($hydrator)) {
-            throw new InvalidArgumentException('Invalid hydrator');
-        }
+        return new $this->hydrator();
+    }
+
+    public function setHydrator(AbstractHydrator $hydrator): self
+    {
         $this->hydrator = $hydrator;
 
         return $this;
@@ -472,7 +529,7 @@ class LaminasDbAdapter implements AdapterInterface
      * @param mixed $where condições para localizar o registro
      * @param string|array $order
      *
-     * @return null|stdClass
+     * @return null|ArrayObject
      */
     public function fetchRow($where, $order = null)
     {
@@ -511,9 +568,9 @@ class LaminasDbAdapter implements AdapterInterface
      * @param int $count
      * @param int $offset
      *
-     * @return stdClass[]|HydratingResultSet
+     * @return ArrayObject[]|array|HydratingResultSet|null
      */
-    public function fetchAll(array $where = null, array $order = null, int $count = null, int $offset = null): ?array
+    public function fetchAll(array $where = null, array $order = null, int $count = null, int $offset = null)
     {
         $where = $where ?: [];
         $order = $order ?: [];
@@ -541,17 +598,17 @@ class LaminasDbAdapter implements AdapterInterface
         if ($hydrator === null) {
             return $fetchAll;
         }
-        $hydratorEntity = $this->getHydratorEntity();
 
         if ($this->useHydrateResultSet) {
-            $hydrateResultSet = new HydratingResultSet($hydrator, new $hydratorEntity());
+            $hydrateResultSet = new HydratingResultSet($hydrator, $this->getEntity(true));
             $hydrateResultSet->initialize(new ArrayIterator($fetchAll));
 
             return $hydrateResultSet;
         }
 
+        $entity = $this->getEntity();
         foreach ($fetchAll as $id => $row) {
-            $fetchAll[$id] = $hydrator->hydrate($row, new $hydratorEntity());
+            $fetchAll[$id] = $hydrator->hydrate($row, new $entity());
         }
 
         return $fetchAll;
@@ -761,110 +818,27 @@ class LaminasDbAdapter implements AdapterInterface
 
     /**
      * @param bool $asObject
-     * @return stdClass|string
+     * @return stdClass|ArrayObject|object|string
      */
-    public function getHydratorEntity($asObject = true)
+    public function getEntity(bool $asObject = true)
     {
         if ($asObject === false) {
-            return $this->hydratorEntity;
+            return $this->entity;
         }
 
-        if (isset($this->hydratorEntity)) {
-            $hydrator = $this->hydratorEntity;
+        if (isset($this->entity)) {
+            $hydrator = $this->entity;
             return new $hydrator();
         }
 
         return new stdClass();
     }
 
-    /**
-     * @param string $hydratorEntity
-     *
-     * @return self
-     */
-    public function setHydratorEntity(string $hydratorEntity): LaminasDbAdapter
+    public function setEntity(string $entity): self
     {
-        $this->hydratorEntity = $hydratorEntity;
+        $this->entity = $entity;
 
         return $this;
-    }
-
-    /**
-     * Altera um registro
-     *
-     * @param array $set Dados a serem atualizados
-     * @param int|array $key Chave do registro a ser alterado
-     *
-     * @return int
-     */
-    public function update(array $set, $key)
-    {
-        // Verifica se o código é válido
-        if (empty($key)) {
-            throw new InvalidArgumentException("Chave <b>'$key'</b> inválida");
-        }
-
-        // Verifica se há algo para alterar
-        if (empty($set)) {
-            return false;
-        }
-
-        // Cria um objeto para conseguir usar o hydrator
-        if (is_array($set)) {
-            $set = new stdClass($set);
-        }
-
-        // Recupera os dados existentes
-        $row = $this->fetchRow($key);
-
-        // Verifica se existe o registro
-        if (empty($row)) {
-            return false;
-        }
-
-        $hydrator = $this->getHydrator();
-        $row = $hydrator->extract($row);
-        $set = $hydrator->extract($set);
-
-        //@todo Quem deveria fazer isso é o hydrator!
-        /* if ($row instanceof Metadata\stdClass) {
-             $row = $row->toArray();
-             if (isset($row['metadata'])) {
-                 $row[$row->getMappedKeyname('metadata', true)] = $row['metadata'];
-                 unset($row['metadata']);
-             }
-         }*/
-
-        // Remove os campos vazios
-        foreach ($set as $field => $value) {
-            if (is_string($value)) {
-                $set[$field] = trim($value);
-                if ($set[$field] === '') {
-                    $set[$field] = null;
-                }
-            }
-        }
-
-        // Verifica se há o que atualizar
-        $diff = $this->array_diff_assoc_recursive($set, $row);
-
-        // Grava os dados alterados para referencia
-        $this->lastUpdateSet = $set;
-        $this->lastUpdateKey = $key;
-
-        // Grava o que foi alterado
-        $this->lastUpdateDiff = [];
-        foreach ($diff as $field => $value) {
-            $this->lastUpdateDiff[$field] = [$row[$field], $value];
-        }
-
-        // Verifica se há algo para atualizar
-        if (empty($diff)) {
-            return false;
-        }
-
-        // Salva os dados alterados e retorna que o registro foi alterado
-        return $this->getTableGateway()->update($diff, $this->getKeyWhere($key));
     }
 
     private function array_diff_assoc_recursive($array1, $array2): array
@@ -897,9 +871,14 @@ class LaminasDbAdapter implements AdapterInterface
         return $this->lastInsertKey;
     }
 
-    public function getLastUpdateSet(): ?array
+    public function getLastUpdateSetBefore(): ?array
     {
-        return $this->lastUpdateSet;
+        return $this->lastUpdateSetBefore;
+    }
+
+    public function getLastUpdateSetAfter(): ?array
+    {
+        return $this->lastUpdateSetAfter;
     }
 
     public function getLastUpdateDiff(): ?array

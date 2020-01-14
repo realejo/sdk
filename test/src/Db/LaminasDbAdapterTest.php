@@ -9,6 +9,8 @@ use Laminas\Db\Sql;
 use Laminas\Db\Sql\Expression;
 use Laminas\Db\Sql\Select;
 use Laminas\ServiceManager\ServiceManager;
+use Laminas\Stdlib\ArrayObject;
+use LogicException;
 use PHPUnit\Framework\TestCase;
 use Realejo\Sdk\Db\LaminasDbAdapter;
 use RealejoTest\Sdk\Test\DbTrait;
@@ -84,7 +86,7 @@ class LaminasDbAdapterTest extends TestCase
     {
         parent::setUp();
 
-        $this->dropTables();
+        $this->dropTables($this->tables);
         $this->createTables($this->tables);
         $this->insertDefaultRows();
 
@@ -124,39 +126,46 @@ class LaminasDbAdapterTest extends TestCase
         $this->laminasDbAdapter->fetchRow(1);
     }
 
-    /**
-     * Definição de chave invalido
-     */
-    public function testGettersSetters(): void
+    public function testTableKeyGettersSetters(): void
     {
         $this->assertEquals('meuid', $this->laminasDbAdapter->setTableKey('meuid')->getTableKey());
         $this->assertEquals('meuid', $this->laminasDbAdapter->setTableKey('meuid')->getTableKey(true));
         $this->assertEquals('meuid', $this->laminasDbAdapter->setTableKey('meuid')->getTableKey(false));
 
         $this->assertEquals(
-            ['meuid', 'com array'],
+            ['meuid' => LaminasDbAdapter::KEY_INTEGER, 'com array' => LaminasDbAdapter::KEY_INTEGER],
             $this->laminasDbAdapter->setTableKey(['meuid', 'com array'])->getTableKey()
         );
         $this->assertEquals(
-            ['meuid', 'com array'],
+            ['meuid' => LaminasDbAdapter::KEY_INTEGER, 'com array' => LaminasDbAdapter::KEY_INTEGER],
             $this->laminasDbAdapter->setTableKey(['meuid', 'com array'])->getTableKey(false)
         );
-        $this->assertEquals('meuid', $this->laminasDbAdapter->setTableKey(['meuid', 'com array'])->getTableKey(true));
-
-        $this->assertInstanceOf(
-            Expression::class,
-            $this->laminasDbAdapter->setTableKey(new Sql\Expression('chave muito exotica!'))->getTableKey()
+        $this->assertEquals(
+            'meuid',
+            $this->laminasDbAdapter->setTableKey(['meuid', 'com array'])->getTableKey(true)
         );
-        $this->assertInstanceOf(
-            Expression::class,
-            $this->laminasDbAdapter->setTableKey(
-                [
-                    new Sql\Expression('chave muito mais exotica!'),
-                    'não existo'
-                ]
-            )->getTableKey(true)
-        );
+    }
 
+    public function testTableKeyGettersSettersInvalidKey(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Invalid key definition');
+        $this->laminasDbAdapter->setTableKey(new Sql\Expression('chave muito exotica!'))->getTableKey();
+    }
+
+    public function testTableKeyGettersSettersInvalidComplexKey(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Invalid key definition');
+        $this->laminasDbAdapter->setTableKey(
+            [
+                new Sql\Expression('chave muito mais exotica!'),
+            ]
+        );
+    }
+
+    public function testGettersSetters(): void
+    {
         $this->assertEquals(
             ['minhaordem'],
             $this->laminasDbAdapter->setDefaultOrder(['minhaordem'])->getDefaultOrder()
@@ -334,7 +343,7 @@ class LaminasDbAdapterTest extends TestCase
         $albuns = $this->laminasDbAdapter->fetchAll();
         $this->assertCount(4, $albuns, 'showDeleted=true, useDeleted=true');
 
-        // Marca não mostrar os removios
+        // Marca não mostrar os removidos
         $this->laminasDbAdapter->setUseDeleted(true)->setShowDeleted(false);
 
         $albuns = $this->defaultValues;
@@ -342,16 +351,16 @@ class LaminasDbAdapterTest extends TestCase
 
         $fetchAll = $this->laminasDbAdapter->fetchAll();
         foreach ($fetchAll as $id => $row) {
-            $fetchAll[$id] = $row->toArray();
+            $fetchAll[$id] = $row->getArrayCopy();
         }
         $this->assertEquals($albuns, $fetchAll);
 
-        // Marca mostrar os removios
+        // Marca mostrar os removidos
         $this->laminasDbAdapter->setShowDeleted(true);
 
         $fetchAll = $this->laminasDbAdapter->fetchAll();
         foreach ($fetchAll as $id => $row) {
-            $fetchAll[$id] = $row->toArray();
+            $fetchAll[$id] = $row->getArrayCopy();
         }
         $this->assertEquals($this->defaultValues, $fetchAll);
         $this->assertCount(4, $this->laminasDbAdapter->fetchAll());
@@ -430,16 +439,16 @@ class LaminasDbAdapterTest extends TestCase
 
         // Verifica os itens que existem
         $this->assertInstanceOf(ArrayObject::class, $this->laminasDbAdapter->fetchRow(1));
-        $this->assertEquals($this->defaultValues[0], $this->laminasDbAdapter->fetchRow(1)->toArray());
+        $this->assertEquals($this->defaultValues[0], $this->laminasDbAdapter->fetchRow(1)->getArrayCopy());
         $this->assertInstanceOf(ArrayObject::class, $this->laminasDbAdapter->fetchRow(2));
-        $this->assertEquals($this->defaultValues[1], $this->laminasDbAdapter->fetchRow(2)->toArray());
+        $this->assertEquals($this->defaultValues[1], $this->laminasDbAdapter->fetchRow(2)->getArrayCopy());
         $this->assertInstanceOf(ArrayObject::class, $this->laminasDbAdapter->fetchRow(3));
-        $this->assertEquals($this->defaultValues[2], $this->laminasDbAdapter->fetchRow(3)->toArray());
+        $this->assertEquals($this->defaultValues[2], $this->laminasDbAdapter->fetchRow(3)->getArrayCopy());
 
         // Verifica o item removido
         $this->laminasDbAdapter->setShowDeleted(true);
         $this->assertInstanceOf(ArrayObject::class, $this->laminasDbAdapter->fetchRow(4));
-        $this->assertEquals($this->defaultValues[3], $this->laminasDbAdapter->fetchRow(4)->toArray());
+        $this->assertEquals($this->defaultValues[3], $this->laminasDbAdapter->fetchRow(4)->getArrayCopy());
         $this->laminasDbAdapter->setShowDeleted(false);
     }
 
@@ -457,16 +466,16 @@ class LaminasDbAdapterTest extends TestCase
 
         // Verifica os itens que existem
         $this->assertInstanceOf(ArrayObject::class, $this->laminasDbAdapter->fetchRow(1));
-        $this->assertEquals($this->defaultValues[0], $this->laminasDbAdapter->fetchRow(1)->toArray());
+        $this->assertEquals($this->defaultValues[0], $this->laminasDbAdapter->fetchRow(1)->getArrayCopy());
         $this->assertInstanceOf(ArrayObject::class, $this->laminasDbAdapter->fetchRow(2));
-        $this->assertEquals($this->defaultValues[1], $this->laminasDbAdapter->fetchRow(2)->toArray());
+        $this->assertEquals($this->defaultValues[1], $this->laminasDbAdapter->fetchRow(2)->getArrayCopy());
         $this->assertInstanceOf(ArrayObject::class, $this->laminasDbAdapter->fetchRow(3));
-        $this->assertEquals($this->defaultValues[2], $this->laminasDbAdapter->fetchRow(3)->toArray());
+        $this->assertEquals($this->defaultValues[2], $this->laminasDbAdapter->fetchRow(3)->getArrayCopy());
 
         // Verifica o item removido
         $this->laminasDbAdapter->setShowDeleted(true);
         $this->assertInstanceOf(ArrayObject::class, $this->laminasDbAdapter->fetchRow(4));
-        $this->assertEquals($this->defaultValues[3], $this->laminasDbAdapter->fetchRow(4)->toArray());
+        $this->assertEquals($this->defaultValues[3], $this->laminasDbAdapter->fetchRow(4)->getArrayCopy());
         $this->laminasDbAdapter->setShowDeleted(false);
     }
 
@@ -475,7 +484,7 @@ class LaminasDbAdapterTest extends TestCase
      */
     public function testFetchRowWithIntegerKey(): void
     {
-        $this->laminasDbAdapter->setTableKey([LaminasDbAdapter::KEY_INTEGER => 'id']);
+        $this->laminasDbAdapter->setTableKey(['id' => LaminasDbAdapter::KEY_INTEGER]);
 
         // Marca pra usar o campo deleted
         $this->laminasDbAdapter->setUseDeleted(true);
@@ -483,16 +492,16 @@ class LaminasDbAdapterTest extends TestCase
 
         // Verifica os itens que existem
         $this->assertInstanceOf(ArrayObject::class, $this->laminasDbAdapter->fetchRow(1));
-        $this->assertEquals($this->defaultValues[0], $this->laminasDbAdapter->fetchRow(1)->toArray());
+        $this->assertEquals($this->defaultValues[0], $this->laminasDbAdapter->fetchRow(1)->getArrayCopy());
         $this->assertInstanceOf(ArrayObject::class, $this->laminasDbAdapter->fetchRow(2));
-        $this->assertEquals($this->defaultValues[1], $this->laminasDbAdapter->fetchRow(2)->toArray());
+        $this->assertEquals($this->defaultValues[1], $this->laminasDbAdapter->fetchRow(2)->getArrayCopy());
         $this->assertInstanceOf(ArrayObject::class, $this->laminasDbAdapter->fetchRow(3));
-        $this->assertEquals($this->defaultValues[2], $this->laminasDbAdapter->fetchRow(3)->toArray());
+        $this->assertEquals($this->defaultValues[2], $this->laminasDbAdapter->fetchRow(3)->getArrayCopy());
 
         // Verifica o item removido
         $this->laminasDbAdapter->setShowDeleted(true);
         $this->assertInstanceOf(ArrayObject::class, $this->laminasDbAdapter->fetchRow(4));
-        $this->assertEquals($this->defaultValues[3], $this->laminasDbAdapter->fetchRow(4)->toArray());
+        $this->assertEquals($this->defaultValues[3], $this->laminasDbAdapter->fetchRow(4)->getArrayCopy());
         $this->laminasDbAdapter->setShowDeleted(false);
     }
 
@@ -542,25 +551,25 @@ class LaminasDbAdapterTest extends TestCase
             );
         }
 
-        $this->laminasDbAdapter->setTableKey([LaminasDbAdapter::KEY_STRING => 'id']);
+        $this->laminasDbAdapter->setTableKey(['id' => LaminasDbAdapter::KEY_STRING]);
 
         // Marca pra usar o campo deleted
         $this->laminasDbAdapter->setUseDeleted(true);
 
-        $this->laminasDbAdapter->setDefaultOrder('id');
+        $this->laminasDbAdapter->setDefaultOrder(['id']);
 
         // Verifica os itens que existem
         $this->assertInstanceOf(ArrayObject::class, $this->laminasDbAdapter->fetchRow('A'));
-        $this->assertEquals($defaultValues[0], $this->laminasDbAdapter->fetchRow('A')->toArray());
+        $this->assertEquals($defaultValues[0], $this->laminasDbAdapter->fetchRow('A')->getArrayCopy());
         $this->assertInstanceOf(ArrayObject::class, $this->laminasDbAdapter->fetchRow('B'));
-        $this->assertEquals($defaultValues[1], $this->laminasDbAdapter->fetchRow('B')->toArray());
+        $this->assertEquals($defaultValues[1], $this->laminasDbAdapter->fetchRow('B')->getArrayCopy());
         $this->assertInstanceOf(ArrayObject::class, $this->laminasDbAdapter->fetchRow('C'));
-        $this->assertEquals($defaultValues[2], $this->laminasDbAdapter->fetchRow('C')->toArray());
+        $this->assertEquals($defaultValues[2], $this->laminasDbAdapter->fetchRow('C')->getArrayCopy());
 
         // Verifica o item removido
         $this->laminasDbAdapter->setShowDeleted(true);
         $this->assertInstanceOf(ArrayObject::class, $this->laminasDbAdapter->fetchRow('D'));
-        $this->assertEquals($defaultValues[3], $this->laminasDbAdapter->fetchRow('D')->toArray());
+        $this->assertEquals($defaultValues[3], $this->laminasDbAdapter->fetchRow('D')->getArrayCopy());
         $this->laminasDbAdapter->setShowDeleted(false);
     }
 
@@ -615,7 +624,7 @@ class LaminasDbAdapterTest extends TestCase
             );
         }
 
-        $this->laminasDbAdapter->setTableKey([LaminasDbAdapter::KEY_STRING => 'id']);
+        $this->laminasDbAdapter->setTableKey(['id' => LaminasDbAdapter::KEY_STRING]);
 
         // Marca pra usar o campo deleted
         $this->laminasDbAdapter->setUseDeleted(true);
@@ -629,7 +638,7 @@ class LaminasDbAdapterTest extends TestCase
         );
         $this->assertEquals(
             $defaultValues[0],
-            $this->laminasDbAdapter->fetchRow(['id_char' => 'A', 'id_int' => 1])->toArray()
+            $this->laminasDbAdapter->fetchRow(['id_char' => 'A', 'id_int' => 1])->getArrayCopy()
         );
         $this->assertInstanceOf(
             ArrayObject::class,
@@ -637,7 +646,7 @@ class LaminasDbAdapterTest extends TestCase
         );
         $this->assertEquals(
             $defaultValues[1],
-            $this->laminasDbAdapter->fetchRow(['id_char' => 'B', 'id_int' => 2])->toArray()
+            $this->laminasDbAdapter->fetchRow(['id_char' => 'B', 'id_int' => 2])->getArrayCopy()
         );
         $this->assertInstanceOf(
             ArrayObject::class,
@@ -645,7 +654,7 @@ class LaminasDbAdapterTest extends TestCase
         );
         $this->assertEquals(
             $defaultValues[2],
-            $this->laminasDbAdapter->fetchRow(['id_char' => 'C', 'id_int' => 3])->toArray()
+            $this->laminasDbAdapter->fetchRow(['id_char' => 'C', 'id_int' => 3])->getArrayCopy()
         );
 
         $this->assertNull($this->laminasDbAdapter->fetchRow(['id_char' => 'C', 'id_int' => 2]));
@@ -658,7 +667,7 @@ class LaminasDbAdapterTest extends TestCase
         );
         $this->assertEquals(
             $defaultValues[3],
-            $this->laminasDbAdapter->fetchRow(['id_char' => 'D', 'id_int' => 4])->toArray()
+            $this->laminasDbAdapter->fetchRow(['id_char' => 'D', 'id_int' => 4])->getArrayCopy()
         );
         $this->laminasDbAdapter->setShowDeleted(false);
     }
@@ -674,7 +683,6 @@ class LaminasDbAdapterTest extends TestCase
         $this->assertNull($this->laminasDbAdapter->fetchAll(), 'Verifica se há algum registro pregravado');
 
         $this->assertFalse($this->laminasDbAdapter->insert([]), 'Verifica inclusão inválida 1');
-        $this->assertFalse($this->laminasDbAdapter->insert(null), 'Verifica inclusão inválida 2');
 
         $row = [
             'artist' => 'Rush',
@@ -777,10 +785,10 @@ class LaminasDbAdapterTest extends TestCase
         $this->assertCount(2, $this->laminasDbAdapter->fetchAll());
         $row = $this->laminasDbAdapter->fetchRow(1);
         $this->assertInstanceOf(ArrayObject::class, $row);
-        $this->assertEquals($row1, $row->toArray(), 'row1 existe');
+        $this->assertEquals($row1, $row->getArrayCopy(), 'row1 existe');
         $row = $this->laminasDbAdapter->fetchRow(2);
         $this->assertInstanceOf(ArrayObject::class, $row);
-        $this->assertEquals($row2, $row->toArray(), 'row2 existe');
+        $this->assertEquals($row2, $row->getArrayCopy(), 'row2 existe');
 
         $rowUpdate = [
             'artist' => 'Rush',
@@ -795,21 +803,21 @@ class LaminasDbAdapterTest extends TestCase
         $this->assertCount(2, $this->laminasDbAdapter->fetchAll());
         $row = $this->laminasDbAdapter->fetchRow(2);
         $this->assertInstanceOf(ArrayObject::class, $row);
-        $this->assertEquals($rowUpdate, $row->toArray(), 'Alterou o 2?');
+        $this->assertEquals($rowUpdate, $row->getArrayCopy(), 'Alterou o 2?');
 
         $row = $this->laminasDbAdapter->fetchRow(1);
         $this->assertInstanceOf(ArrayObject::class, $row);
-        $this->assertEquals($row1, $row->toArray(), 'Alterou o 1?');
+        $this->assertEquals($row1, $row->getArrayCopy(), 'Alterou o 1?');
         $row = $this->laminasDbAdapter->fetchRow(2);
         $this->assertInstanceOf(ArrayObject::class, $row);
-        $this->assertNotEquals($row2, $row->toArray(), 'O 2 não é mais o mesmo?');
+        $this->assertNotEquals($row2, $row->getArrayCopy(), 'O 2 não é mais o mesmo?');
 
-        $row = $row->toArray();
+        $row = $row->getArrayCopy();
         unset($row['id']);
         unset($row['deleted']);
         $this->assertEquals(
             $row,
-            $this->laminasDbAdapter->getLastUpdateSet(),
+            $this->laminasDbAdapter->getLastUpdateSetAfter(),
             'Os dados diferentes foram os alterados?'
         );
         $this->assertEquals(
@@ -818,8 +826,8 @@ class LaminasDbAdapterTest extends TestCase
             'As alterações foram detectadas corretamente?'
         );
 
-        $this->assertFalse($this->laminasDbAdapter->update([], 2));
-        $this->assertFalse($this->laminasDbAdapter->update(null, 2));
+        $this->assertEquals(0, $this->laminasDbAdapter->update([], 2));
+        $this->assertEquals(0, $this->laminasDbAdapter->update(null, 2));
     }
 
     /**
@@ -852,10 +860,10 @@ class LaminasDbAdapterTest extends TestCase
         // Verifica se o registro existe
         $row = $this->laminasDbAdapter->fetchRow(1);
         $this->assertInstanceOf(ArrayObject::class, $row);
-        $this->assertEquals($row1, $row->toArray(), 'row1 existe');
+        $this->assertEquals($row1, $row->getArrayCopy(), 'row1 existe');
         $row = $this->laminasDbAdapter->fetchRow(2);
         $this->assertInstanceOf(ArrayObject::class, $row);
-        $this->assertEquals($row2, $row->toArray(), 'row2 existe');
+        $this->assertEquals($row2, $row->getArrayCopy(), 'row2 existe');
 
         // Marca para usar o campo deleted
         $this->laminasDbAdapter->setUseDeleted(true)->setShowDeleted(true);
@@ -869,7 +877,7 @@ class LaminasDbAdapterTest extends TestCase
         $this->assertEquals(1, $row['deleted'], 'row1 marcado como deleted');
         $row = $this->laminasDbAdapter->fetchRow(2);
         $this->assertInstanceOf(ArrayObject::class, $row);
-        $this->assertEquals($row2, $row->toArray(), 'row2 ainda existe');
+        $this->assertEquals($row2, $row->getArrayCopy(), 'row2 ainda existe');
 
         // Marca para mostrar os removidos
         $this->laminasDbAdapter->setShowDeleted(true);
@@ -877,10 +885,10 @@ class LaminasDbAdapterTest extends TestCase
         // Verifica se o registro existe
         $row = $this->laminasDbAdapter->fetchRow(1);
         $this->assertInstanceOf(ArrayObject::class, $row);
-        $this->assertEquals($row1, $row->toArray(), 'row1 ainda existe v1');
+        $this->assertEquals($row1, $row->getArrayCopy(), 'row1 ainda existe v1');
         $row = $this->laminasDbAdapter->fetchRow(2);
         $this->assertInstanceOf(ArrayObject::class, $row);
-        $this->assertEquals($row2, $row->toArray(), 'row2 ainda existe v1');
+        $this->assertEquals($row2, $row->getArrayCopy(), 'row2 ainda existe v1');
 
         // Marca para remover o registro da tabela
         $this->laminasDbAdapter->setUseDeleted(false);
@@ -891,10 +899,10 @@ class LaminasDbAdapterTest extends TestCase
         // Verifica se ele foi removido
         $row = $this->laminasDbAdapter->fetchRow(1);
         $this->assertInstanceOf(ArrayObject::class, $row);
-        $this->assertEquals($row1, $row->toArray(), 'row1 ainda existe v2');
+        $this->assertEquals($row1, $row->getArrayCopy(), 'row1 ainda existe v2');
         $row = $this->laminasDbAdapter->fetchRow(2);
         $this->assertInstanceOf(ArrayObject::class, $row);
-        $this->assertEquals($row2, $row->toArray(), 'row2 ainda existe v2');
+        $this->assertEquals($row2, $row->getArrayCopy(), 'row2 ainda existe v2');
 
         // Remove o registro
         $this->laminasDbAdapter->delete(1);
@@ -903,7 +911,7 @@ class LaminasDbAdapterTest extends TestCase
         $this->assertNull($this->laminasDbAdapter->fetchRow(1), 'row1 não existe v3');
         $row = $this->laminasDbAdapter->fetchRow(2);
         $this->assertInstanceOf(ArrayObject::class, $row);
-        $this->assertEquals($row2, $row->toArray(), 'row2 ainda existe v3');
+        $this->assertEquals($row2, $row->getArrayCopy(), 'row2 ainda existe v3');
     }
 
     /**
@@ -916,7 +924,7 @@ class LaminasDbAdapterTest extends TestCase
         $this->laminasDbAdapter->setDefaultOrder(['id']);
         $this->assertEmpty($this->laminasDbAdapter->fetchAll(), 'tabela não está vazia');
 
-        $this->laminasDbAdapter->setTableKey([LaminasDbAdapter::KEY_INTEGER => 'id']);
+        $this->laminasDbAdapter->setTableKey(['id' => LaminasDbAdapter::KEY_INTEGER]);
 
         // Abaixo é igual ao testDelete
         $row1 = [
@@ -938,10 +946,10 @@ class LaminasDbAdapterTest extends TestCase
         // Verifica se o registro existe
         $row = $this->laminasDbAdapter->fetchRow(1);
         $this->assertInstanceOf(ArrayObject::class, $row);
-        $this->assertEquals($row1, $row->toArray(), 'row1 existe');
+        $this->assertEquals($row1, $row->getArrayCopy(), 'row1 existe');
         $row = $this->laminasDbAdapter->fetchRow(2);
         $this->assertInstanceOf(ArrayObject::class, $row);
-        $this->assertEquals($row2, $row->toArray(), 'row2 existe');
+        $this->assertEquals($row2, $row->getArrayCopy(), 'row2 existe');
 
         // Marca para usar o campo deleted
         $this->laminasDbAdapter->setUseDeleted(true)->setShowDeleted(true);
@@ -955,7 +963,7 @@ class LaminasDbAdapterTest extends TestCase
         $this->assertEquals(1, $row['deleted'], 'row1 marcado como deleted');
         $row = $this->laminasDbAdapter->fetchRow(2);
         $this->assertInstanceOf(ArrayObject::class, $row);
-        $this->assertEquals($row2, $row->toArray(), 'row2 ainda existe');
+        $this->assertEquals($row2, $row->getArrayCopy(), 'row2 ainda existe');
 
         // Marca para mostrar os removidos
         $this->laminasDbAdapter->setShowDeleted(true);
@@ -963,10 +971,10 @@ class LaminasDbAdapterTest extends TestCase
         // Verifica se o registro existe
         $row = $this->laminasDbAdapter->fetchRow(1);
         $this->assertInstanceOf(ArrayObject::class, $row);
-        $this->assertEquals($row1, $row->toArray(), 'row1 ainda existe v1');
+        $this->assertEquals($row1, $row->getArrayCopy(), 'row1 ainda existe v1');
         $row = $this->laminasDbAdapter->fetchRow(2);
         $this->assertInstanceOf(ArrayObject::class, $row);
-        $this->assertEquals($row2, $row->toArray(), 'row2 ainda existe v1');
+        $this->assertEquals($row2, $row->getArrayCopy(), 'row2 ainda existe v1');
 
         // Marca para remover o registro da tabela
         $this->laminasDbAdapter->setUseDeleted(false);
@@ -977,10 +985,10 @@ class LaminasDbAdapterTest extends TestCase
         // Verifica se ele foi removido
         $row = $this->laminasDbAdapter->fetchRow(1);
         $this->assertInstanceOf(ArrayObject::class, $row);
-        $this->assertEquals($row1, $row->toArray(), 'row1 ainda existe v2');
+        $this->assertEquals($row1, $row->getArrayCopy(), 'row1 ainda existe v2');
         $row = $this->laminasDbAdapter->fetchRow(2);
         $this->assertInstanceOf(ArrayObject::class, $row);
-        $this->assertEquals($row2, $row->toArray(), 'row2 ainda existe v2');
+        $this->assertEquals($row2, $row->getArrayCopy(), 'row2 ainda existe v2');
 
         // Remove o registro
         $this->laminasDbAdapter->delete(1);
@@ -989,7 +997,7 @@ class LaminasDbAdapterTest extends TestCase
         $this->assertNull($this->laminasDbAdapter->fetchRow(1), 'row1 não existe v3');
         $row = $this->laminasDbAdapter->fetchRow(2);
         $this->assertInstanceOf(ArrayObject::class, $row);
-        $this->assertEquals($row2, $row->toArray(), 'row2 ainda existe v3');
+        $this->assertEquals($row2, $row->getArrayCopy(), 'row2 ainda existe v3');
     }
 
     /**
@@ -998,10 +1006,10 @@ class LaminasDbAdapterTest extends TestCase
     public function testDeleteStringKey(): void
     {
         // Cria a tabela com chave string
-        $this->laminasDbAdapter->setTableKey([MapperAbstract::KEY_STRING => 'id']);
+        $this->laminasDbAdapter->setTableKey(['id' => LaminasDbAdapter::KEY_STRING]);
         $this->dropTables();
         $this->createTables(['album_string']);
-        $this->laminasDbAdapter->setDefaultOrder('id');
+        $this->laminasDbAdapter->setDefaultOrder(['id']);
 
         // Abaixo é igual ao testDelete trocando 1, 2 por A, B
         $row1 = [
@@ -1023,10 +1031,10 @@ class LaminasDbAdapterTest extends TestCase
         // Verifica se o registro existe
         $row = $this->laminasDbAdapter->fetchRow('A');
         $this->assertInstanceOf(ArrayObject::class, $row);
-        $this->assertEquals($row1, $row->toArray(), 'row1 existe');
+        $this->assertEquals($row1, $row->getArrayCopy(), 'row1 existe');
         $row = $this->laminasDbAdapter->fetchRow('B');
         $this->assertInstanceOf(ArrayObject::class, $row);
-        $this->assertEquals($row2, $row->toArray(), 'row2 existe');
+        $this->assertEquals($row2, $row->getArrayCopy(), 'row2 existe');
 
         // Marca para usar o campo deleted
         $this->laminasDbAdapter->setUseDeleted(true)->setShowDeleted(true);
@@ -1040,7 +1048,7 @@ class LaminasDbAdapterTest extends TestCase
         $this->assertEquals(1, $row['deleted'], 'row1 marcado como deleted');
         $row = $this->laminasDbAdapter->fetchRow('B');
         $this->assertInstanceOf(ArrayObject::class, $row);
-        $this->assertEquals($row2, $row->toArray(), 'row2 ainda existe');
+        $this->assertEquals($row2, $row->getArrayCopy(), 'row2 ainda existe');
 
         // Marca para mostrar os removidos
         $this->laminasDbAdapter->setShowDeleted(true);
@@ -1048,10 +1056,10 @@ class LaminasDbAdapterTest extends TestCase
         // Verifica se o registro existe
         $row = $this->laminasDbAdapter->fetchRow('A');
         $this->assertInstanceOf(ArrayObject::class, $row);
-        $this->assertEquals($row1, $row->toArray(), 'row1 ainda existe v1');
+        $this->assertEquals($row1, $row->getArrayCopy(), 'row1 ainda existe v1');
         $row = $this->laminasDbAdapter->fetchRow('B');
         $this->assertInstanceOf(ArrayObject::class, $row);
-        $this->assertEquals($row2, $row->toArray(), 'row2 ainda existe v1');
+        $this->assertEquals($row2, $row->getArrayCopy(), 'row2 ainda existe v1');
 
         // Marca para remover o registro da tabela
         $this->laminasDbAdapter->setUseDeleted(false);
@@ -1062,10 +1070,10 @@ class LaminasDbAdapterTest extends TestCase
         // Verifica se ele foi removido
         $row = $this->laminasDbAdapter->fetchRow('A');
         $this->assertInstanceOf(ArrayObject::class, $row);
-        $this->assertEquals($row1, $row->toArray(), 'row1 ainda existe v2');
+        $this->assertEquals($row1, $row->getArrayCopy(), 'row1 ainda existe v2');
         $row = $this->laminasDbAdapter->fetchRow('B');
         $this->assertInstanceOf(ArrayObject::class, $row);
-        $this->assertEquals($row2, $row->toArray(), 'row2 ainda existe v2');
+        $this->assertEquals($row2, $row->getArrayCopy(), 'row2 ainda existe v2');
 
         // Remove o registro
         $this->laminasDbAdapter->delete('A');
@@ -1074,7 +1082,7 @@ class LaminasDbAdapterTest extends TestCase
         $this->assertNull($this->laminasDbAdapter->fetchRow('A'), 'row1 não existe v3');
         $row = $this->laminasDbAdapter->fetchRow('B');
         $this->assertInstanceOf(ArrayObject::class, $row);
-        $this->assertEquals($row2, $row->toArray(), 'row2 ainda existe v3');
+        $this->assertEquals($row2, $row->getArrayCopy(), 'row2 ainda existe v3');
     }
 
     /**
@@ -1085,49 +1093,40 @@ class LaminasDbAdapterTest extends TestCase
     public function testDeleteInvalidArrayKey()
     {
         $this->laminasDbAdapter->setTableKey(
-            [MapperAbstract::KEY_INTEGER => 'id_int', MapperAbstract::KEY_STRING => 'id_char']
+            [LaminasDbAdapter::KEY_INTEGER => 'id_int', LaminasDbAdapter::KEY_STRING => 'id_char']
         );
         $this->laminasDbAdapter->delete('A');
     }
 
-    /**
-     * Acesso de chave multiplica com acesso simples
-     *
-     * @expectedException InvalidArgumentException
-     */
     public function testDeleteInvalidArrayMultiKey(): void
     {
+        $this->expectException(InvalidArgumentException::class);
         $this->laminasDbAdapter->setTableKey(
             [
-                MapperAbstract::KEY_INTEGER => 'id_int',
-                MapperAbstract::KEY_STRING => ['id_char', 'id_char2']
+                'id_int' => LaminasDbAdapter::KEY_INTEGER,
+                'id_char2' => LaminasDbAdapter::KEY_STRING
             ]
         );
         $this->laminasDbAdapter->delete('A');
     }
 
-    /**
-     * Acesso de chave multiplica com acesso simples
-     *
-     * @expectedException LogicException
-     */
     public function testDeleteInvalidArraySingleKey(): void
     {
+        $this->expectException(LogicException::class);
         $this->laminasDbAdapter->setTableKey(
-            [MapperAbstract::KEY_INTEGER => 'id_int', MapperAbstract::KEY_STRING => 'id_char']
+            [
+                'id_int' => LaminasDbAdapter::KEY_INTEGER,
+                'id_char2' => LaminasDbAdapter::KEY_STRING
+            ]
         );
         $this->laminasDbAdapter->delete(['id_int' => 'A']);
     }
 
-
-    /**
-     * Tests TableAdapter->delete()
-     */
     public function testDeleteArrayKey(): void
     {
         // Cria a tabela com chave string
         $this->laminasDbAdapter->setTableKey(
-            [LaminasDbAdapter::KEY_INTEGER => 'id_int', LaminasDbAdapter::KEY_STRING => 'id_char']
+            ['id_int' => LaminasDbAdapter::KEY_INTEGER, 'id_char' => LaminasDbAdapter::KEY_STRING]
         );
         $this->dropTables();
         $this->createTables(['album_array']);
@@ -1156,10 +1155,10 @@ class LaminasDbAdapterTest extends TestCase
         // Verifica se o registro existe
         $row = $this->laminasDbAdapter->fetchRow(['id_char' => 'A', 'id_int' => 1]);
         $this->assertInstanceOf(ArrayObject::class, $row);
-        $this->assertEquals($row1, $row->toArray(), 'row1 existe');
+        $this->assertEquals($row1, $row->getArrayCopy(), 'row1 existe');
         $row = $this->laminasDbAdapter->fetchRow(['id_char' => 'B', 'id_int' => 2]);
         $this->assertInstanceOf(ArrayObject::class, $row);
-        $this->assertEquals($row2, $row->toArray(), 'row2 existe');
+        $this->assertEquals($row2, $row->getArrayCopy(), 'row2 existe');
 
         // Marca para usar o campo deleted
         $this->laminasDbAdapter->setUseDeleted(true)->setShowDeleted(true);
@@ -1175,7 +1174,7 @@ class LaminasDbAdapterTest extends TestCase
 
         $row = $this->laminasDbAdapter->fetchRow(['id_char' => 'B', 'id_int' => 2]);
         $this->assertInstanceOf(ArrayObject::class, $row);
-        $this->assertEquals($row2, $row->toArray(), 'row2 ainda existe v1');
+        $this->assertEquals($row2, $row->getArrayCopy(), 'row2 ainda existe v1');
 
         // Marca para mostrar os removidos
         $this->laminasDbAdapter->setShowDeleted(true);
@@ -1183,10 +1182,10 @@ class LaminasDbAdapterTest extends TestCase
         // Verifica se o registro existe
         $row = $this->laminasDbAdapter->fetchRow(['id_char' => 'A', 'id_int' => 1]);
         $this->assertInstanceOf(ArrayObject::class, $row, 'row1 ainda existe v1');
-        $this->assertEquals($row1, $row->toArray());
+        $this->assertEquals($row1, $row->getArrayCopy());
         $row = $this->laminasDbAdapter->fetchRow(['id_char' => 'B', 'id_int' => 2]);
         $this->assertInstanceOf(ArrayObject::class, $row, 'row2 ainda existe v1');
-        $this->assertEquals($row2, $row->toArray());
+        $this->assertEquals($row2, $row->getArrayCopy());
 
         // Marca para remover o registro da tabela
         $this->laminasDbAdapter->setUseDeleted(false);
@@ -1223,8 +1222,9 @@ class LaminasDbAdapterTest extends TestCase
         // Cria a tabela com chave string
         $this->laminasDbAdapter->setTableKey(
             [
-                LaminasDbAdapter::KEY_INTEGER => 'id_int',
-                LaminasDbAdapter::KEY_STRING => ['id_char', 'artist']
+                'id_int' => LaminasDbAdapter::KEY_INTEGER,
+                'artist' => LaminasDbAdapter::KEY_STRING,
+                'id_char' => LaminasDbAdapter::KEY_STRING
             ]
         );
         $this->dropTables();
@@ -1254,10 +1254,10 @@ class LaminasDbAdapterTest extends TestCase
         // Verifica se o registro existe
         $row = $this->laminasDbAdapter->fetchRow(['id_char' => 'A', 'id_int' => 1, 'artist' => 'Rush']);
         $this->assertInstanceOf(ArrayObject::class, $row);
-        $this->assertEquals($row1, $row->toArray(), 'row1 existe');
+        $this->assertEquals($row1, $row->getArrayCopy(), 'row1 existe');
         $row = $this->laminasDbAdapter->fetchRow(['id_char' => 'B', 'id_int' => 2, 'artist' => 'Rush']);
         $this->assertInstanceOf(ArrayObject::class, $row);
-        $this->assertEquals($row2, $row->toArray(), 'row2 existe');
+        $this->assertEquals($row2, $row->getArrayCopy(), 'row2 existe');
 
 
         // atualizar o registro
