@@ -11,6 +11,7 @@ use Laminas\ServiceManager\ServiceManager;
 use Laminas\Stdlib\ArrayObject;
 use Psr\Container\ContainerInterface;
 use Realejo\Sdk\Cache\CacheService;
+use stdClass;
 
 class AbstractRepository
 {
@@ -47,18 +48,9 @@ class AbstractRepository
     protected $cache;
 
     /**
-     * Campo a ser usado no <option>
-     *
-     * @var string
+     * @var bool
      */
-    protected $htmlSelectOption = '{nome}';
-
-    /**
-     * Campos a serem adicionados no <option> como data
-     *
-     * @var string|array
-     */
-    protected $htmlSelectOptionData;
+    protected $autoCleanCache;
 
     /**
      * @var ContainerInterface
@@ -126,7 +118,7 @@ class AbstractRepository
         } elseif ($dbAdapter instanceof LaminasDbAdapter) {
             $this->dbAdapter = $dbAdapter;
         } else {
-            throw new \InvalidArgumentException('Db Adapter invalido');
+            throw new InvalidArgumentException('Db Adapter invalido');
         }
     }
 
@@ -203,32 +195,44 @@ class AbstractRepository
     /**
      * Retorna um registro
      *
-     * @param string|array $where OPTIONAL An SQL WHERE clause
-     * @param string|array $order OPTIONAL An SQL ORDER clause.
-     * @return null|ArrayObject
+     * @param string|array $key OPTIONAL An SQL WHERE clause
+     * @return null|ArrayObject|stdClass
      */
-    public function findOne($where = null, $order = null)
+    public function findOne($key = null)
     {
-        $where = $this->getWhere($where);
-
-        // Define se é a chave da tabela, assim como é verificado no Mapper::fetchRow()
-        if (is_numeric($where) || is_string($where)) {
-            // Verifica se há chave definida
+        if (is_numeric($key) || is_string($key)) {
             if (empty($this->getDbAdapter()->getTableKey())) {
                 throw new InvalidArgumentException('Chave não definida');
             }
 
-            // Verifica se é uma chave múltipla ou com cast
             if (is_array($this->getDbAdapter()->getTableKey())) {
                 // Verifica se é uma chave simples com cast
                 if (count($this->getDbAdapter()->getTableKey()) !== 1) {
                     throw new InvalidArgumentException('Não é possível acessar chaves múltiplas informando apenas uma');
                 }
-                $where = [$this->getDbAdapter()->getTableKey(true) => $where];
+                $where = [$this->getDbAdapter()->getTableKey(true) => $key];
             } else {
-                $where = [$this->getDbAdapter()->getTableKey() => $where];
+                $where = [$this->getDbAdapter()->getTableKey() => $key];
             }
+        } elseif (is_array($key)) {
+            $where = $key;
+        } else {
+            throw new InvalidArgumentException('Invalid key');
         }
+
+        return $this->findOneBy($where);
+    }
+
+    /**
+     * Retorna um registro
+     *
+     * @param string|array $where OPTIONAL An SQL WHERE clause
+     * @param string|array $order OPTIONAL An SQL ORDER clause.
+     * @return null|ArrayObject|stdClass
+     */
+    public function findOneBy(array $where = [], array $order = [])
+    {
+        $where = $this->getWhere($where);
 
         // Cria a assinatura da consulta
         $cacheKey = 'findOne'
@@ -262,14 +266,14 @@ class AbstractRepository
     /**
      * Retorna vários registros associados pela chave
      *
-     * @param string|array $where OPTIONAL An SQL WHERE clause
-     * @param string|array $order OPTIONAL An SQL ORDER clause.
+     * @param array $where OPTIONAL An SQL WHERE clause
+     * @param array $order OPTIONAL An SQL ORDER clause.
      * @param int $count OPTIONAL An SQL LIMIT count.
      * @param int $offset OPTIONAL An SQL LIMIT offset.
      *
-     * @return ArrayObject[] | null
+     * @return ArrayObject[]|stdClass[]|null
      */
-    public function findAssoc($where = null, $order = null, $count = null, $offset = null): ?array
+    public function findAssoc(array $where = [], array $order = [], int $count = null, int $offset = null): ?array
     {
         // Cria a assinatura da consulta
         $cacheKey = 'findAssoc'
@@ -305,14 +309,14 @@ class AbstractRepository
     /**
      * Retorna a consulta paginada
      *
-     * @param string|array $where OPTIONAL An SQL WHERE clause
-     * @param string|array $order OPTIONAL An SQL ORDER clause.
+     * @param array|Select $where OPTIONAL An SQL WHERE clause
+     * @param array $order OPTIONAL An SQL ORDER clause.
      * @param int $count OPTIONAL An SQL LIMIT count.
      * @param int $offset OPTIONAL An SQL LIMIT offset.
      *
      * @return Paginator|ArrayObject[]|null
      */
-    public function findPaginated($where = null, $order = null, $count = null, $offset = null)
+    public function findPaginated($where = [], array $order = [], int $count = null, int $offset = null)
     {
         // Define a consulta
         if ($where instanceof Select) {
@@ -352,10 +356,7 @@ class AbstractRepository
         return $findPaginated;
     }
 
-    /**
-     * @return PaginatorOptions
-     */
-    public function getPaginatorOptions()
+    public function getPaginatorOptions(): PaginatorOptions
     {
         if (!isset($this->paginatorOptions)) {
             $this->paginatorOptions = new PaginatorOptions();
@@ -371,7 +372,7 @@ class AbstractRepository
      *
      * @return int|array Chave do registro criado
      */
-    public function create($set)
+    public function create(array $set)
     {
         return $this->getDbAdapter()->insert($set);
     }
@@ -384,61 +385,17 @@ class AbstractRepository
      *
      * @return int Quantidade de registro alterados
      */
-    public function update($set, $key)
+    public function update(array $set, $key): int
     {
         return $this->getDbAdapter()->update($set, $key);
     }
 
-    /**
-     * @return bool
-     */
-    public function getUseJoin()
-    {
-        return $this->getDbAdapter()->getUseJoin();
-    }
-
-    /**
-     * @param bool $useJoin
-     * @return ServiceAbstract
-     */
-    public function setUseJoin($useJoin)
-    {
-        $this->getDbAdapter()->setUseJoin($useJoin);
-        return $this;
-    }
-
-    /**
-     * Apaga o cache
-     *
-     * Não precisa apagar o cache dos metadata pois é o mesmo do serviço
-     */
-    public function cleanCache()
+    public function cleanCache(): void
     {
         $this->getCache()->flush();
-        $this->getDbAdapter()->getCache()->flush();
     }
 
-    /**
-     * @return bool
-     */
-    public function getAutoCleanCache()
-    {
-        return $this->getDbAdapter()->getAutoCleanCache();
-    }
-
-    /**
-     * @param bool $autoCleanCache
-     *
-     * @return ServiceAbstract
-     */
-    public function setAutoCleanCache($autoCleanCache)
-    {
-        $this->getDbAdapter()->setAutoCleanCache($autoCleanCache);
-
-        return $this;
-    }
-
-    public function getFromServiceLocator($class)
+    protected function getFromServiceLocator($class)
     {
         if (!$this->hasServiceLocator()) {
             return null;
@@ -455,17 +412,23 @@ class AbstractRepository
         return $this->getServiceLocator()->get($class);
     }
 
-    /**
-     * @return string
-     */
+    public function getAutoCleanCache(): bool
+    {
+        return $this->autoCleanCache;
+    }
+
+    public function setAutoCleanCache(bool $autoCleanCache): self
+    {
+        $this->autoCleanCache = $autoCleanCache;
+
+        return $this;
+    }
+
     public function getTableName(): string
     {
         return $this->tableName;
     }
 
-    /**
-     * @param string $tableName
-     */
     public function setTableName(string $tableName): void
     {
         $this->tableName = $tableName;
@@ -485,5 +448,16 @@ class AbstractRepository
     public function setTableKey($tableKey): void
     {
         $this->tableKey = $tableKey;
+    }
+
+    public function getUseJoin(): bool
+    {
+        return $this->getDbAdapter()->getUseJoin();
+    }
+
+    public function setUseJoin(bool $useJoin): self
+    {
+        $this->getDbAdapter()->setUseJoin($useJoin);
+        return $this;
     }
 }

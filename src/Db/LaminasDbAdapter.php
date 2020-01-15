@@ -171,12 +171,7 @@ class LaminasDbAdapter implements AdapterInterface
 
         // Verifica se é para retorna apenas a primeira da chave multipla
         if (is_array($key) && $returnSingle === true) {
-            if (is_array($key)) {
-                foreach ($key as $keyName => $type) {
-                    $key = $keyName;
-                    break;
-                }
-            }
+            return array_keys($key)[0];
         }
 
         return $key;
@@ -436,7 +431,14 @@ class LaminasDbAdapter implements AdapterInterface
         }
 
         // Recupera os dados existentes
-        $row = $this->fetchRow($key);
+        $keyWhere = $key;
+        if (!$keyWhere instanceof Expression) {
+            $keyWhere = new Expression($this->getKeyWhere($keyWhere));
+        }
+        if (!is_array($keyWhere)) {
+            $keyWhere = [$keyWhere];
+        }
+        $row = $this->fetchRow($keyWhere);
         if ($row === null) {
             return 0;
         }
@@ -497,33 +499,13 @@ class LaminasDbAdapter implements AdapterInterface
     /**
      * Recupera um registro
      *
-     * @param mixed $where condições para localizar o registro
-     * @param string|array $order
+     * @param array $where condições para localizar o registro
+     * @param array $order
      *
-     * @return null|ArrayObject
+     * @return null|ArrayObject|stdClass
      */
-    public function fetchRow($where, $order = null)
+    public function fetchRow(array $where = [], array $order = [])
     {
-        // Define se é a chave da tabela
-        if (is_numeric($where) || is_string($where)) {
-            // Verifica se há chave definida
-            if (empty($this->tableKey)) {
-                throw new InvalidArgumentException('Chave não definida em ' . get_class($this));
-            }
-
-            // Verifica se é uma chave múltipla ou com cast
-            if (is_array($this->tableKey)) {
-                // Verifica se é uma chave simples com cast
-                if (count($this->tableKey) != 1) {
-                    throw new InvalidArgumentException('Não é possível acessar chaves múltiplas informando apenas uma');
-                }
-                $where = [$this->getTableKey(true) => $where];
-            } else {
-                $where = [$this->tableKey => $where];
-            }
-        }
-
-        // Recupera o registro
         $fetchRow = $this->fetchAll($where, $order, 1);
 
         if ($this->useHydrateResultSet) {
@@ -541,7 +523,7 @@ class LaminasDbAdapter implements AdapterInterface
      *
      * @return ArrayObject[]|array|HydratingResultSet|null
      */
-    public function fetchAll(array $where = null, array $order = null, int $count = null, int $offset = null)
+    public function fetchAll(array $where = [], array $order = [], int $count = null, int $offset = null)
     {
         $where = $where ?: [];
         $order = $order ?: [];

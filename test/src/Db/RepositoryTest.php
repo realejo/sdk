@@ -4,8 +4,8 @@ namespace RealejoTest\Sdk\Db;
 
 use DateTime;
 use Laminas\Db\Adapter\Adapter;
-use Laminas\Dom\Document\Query as DomQuery;
 use Laminas\ServiceManager\ServiceManager;
+use Laminas\Stdlib\ArrayObject;
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;
 use Realejo\Sdk\Cache\CacheService;
@@ -144,7 +144,7 @@ class RepositoryTest extends TestCase
 
         $findAll = $this->repository->findAll();
         foreach ($findAll as $id => $row) {
-            $findAll[$id] = $row->toArray();
+            $findAll[$id] = $row->getArrayCopy();
         }
         $this->assertEquals($albuns, $findAll);
 
@@ -153,7 +153,7 @@ class RepositoryTest extends TestCase
 
         $findAll = $this->repository->findAll();
         foreach ($findAll as $id => $row) {
-            $findAll[$id] = $row->toArray();
+            $findAll[$id] = $row->getArrayCopy();
         }
         $this->assertEquals($this->defaultValues, $findAll);
         $this->assertCount(4, $this->repository->findAll());
@@ -174,7 +174,7 @@ class RepositoryTest extends TestCase
 
         $findAll = $this->repository->findAll();
         foreach ($findAll as $id => $row) {
-            $findAll[$id] = $row->toArray();
+            $findAll[$id] = $row->getArrayCopy();
         }
         $paginator = json_encode($temp);
         $this->assertNotEquals(json_encode($this->defaultValues), $paginator);
@@ -194,10 +194,10 @@ class RepositoryTest extends TestCase
         $paginator = json_encode($temp);
 
         $this->assertNotEquals(json_encode($this->defaultValues), $paginator);
-        $fetchAll = $this->repository->findPaginated(null, null, 2);
+        $fetchAll = $this->repository->findPaginated([], [], 2);
         $temp = [];
         foreach ($fetchAll as $p) {
-            $temp[] = $p->toArray();
+            $temp[] = $p->getArrayCopy();
         }
         $fetchAll = $temp;
         $this->assertEquals(json_encode($fetchAll), $paginator);
@@ -213,7 +213,7 @@ class RepositoryTest extends TestCase
         $findAll = $this->repository->findAll();
         $temp = [];
         foreach ($findAll as $p) {
-            $temp[] = $p->toArray();
+            $temp[] = $p->getArrayCopy();
         }
         $findAll = $temp;
         $this->assertEquals($this->defaultValues, $findAll, 'fetchAll está igual ao defaultValues');
@@ -254,22 +254,22 @@ class RepositoryTest extends TestCase
         // Marca pra usar o campo deleted
         $this->repository->getDbAdapter()->setUseDeleted(true);
 
-        $this->repository->getDbAdapter()->setDefaultOrder('id');
+        $this->repository->getDbAdapter()->setDefaultOrder(['id']);
 
         // Verifica os itens que existem
-        $this->assertInstanceOf('\Realejo\Stdlib\ArrayObject', $this->repository->findOne(1));
-        $this->assertEquals($this->defaultValues[0], $this->repository->findOne(1)->toArray());
-        $this->assertInstanceOf('\Realejo\Stdlib\ArrayObject', $this->repository->findOne(2));
-        $this->assertEquals($this->defaultValues[1], $this->repository->findOne(2)->toArray());
-        $this->assertInstanceOf('\Realejo\Stdlib\ArrayObject', $this->repository->findOne(3));
-        $this->assertEquals($this->defaultValues[2], $this->repository->findOne(3)->toArray());
+        $this->assertInstanceOf(ArrayObject::class, $this->repository->findOne(1));
+        $this->assertEquals($this->defaultValues[0], $this->repository->findOne(1)->getArrayCopy());
+        $this->assertInstanceOf(ArrayObject::class, $this->repository->findOne(2));
+        $this->assertEquals($this->defaultValues[1], $this->repository->findOne(2)->getArrayCopy());
+        $this->assertInstanceOf(ArrayObject::class, $this->repository->findOne(3));
+        $this->assertEquals($this->defaultValues[2], $this->repository->findOne(3)->getArrayCopy());
         $this->assertEmpty($this->repository->findOne(4));
 
         // Verifica o item removido
         $this->repository->getDbAdapter()->setShowDeleted(true);
         $findOne = $this->repository->findOne(4);
-        $this->assertInstanceOf('\Realejo\Stdlib\ArrayObject', $findOne);
-        $this->assertEquals($this->defaultValues[3], $findOne->toArray());
+        $this->assertInstanceOf(ArrayObject::class, $findOne);
+        $this->assertEquals($this->defaultValues[3], $findOne->getArrayCopy());
         $this->repository->getDbAdapter()->setShowDeleted(false);
     }
 
@@ -280,14 +280,14 @@ class RepositoryTest extends TestCase
         // O padrão é não usar o campo deleted
         $albuns = $this->repository->findAssoc();
         $this->assertCount(4, $albuns, 'showDeleted=false, useDeleted=false');
-        $this->assertInstanceOf('\Realejo\Stdlib\ArrayObject', $albuns[1]);
-        $this->assertEquals($this->defaultValues[0], $albuns[1]->toArray());
-        $this->assertInstanceOf('\Realejo\Stdlib\ArrayObject', $albuns[2]);
-        $this->assertEquals($this->defaultValues[1], $albuns[2]->toArray());
-        $this->assertInstanceOf('\Realejo\Stdlib\ArrayObject', $albuns[3]);
-        $this->assertEquals($this->defaultValues[2], $albuns[3]->toArray());
-        $this->assertInstanceOf('\Realejo\Stdlib\ArrayObject', $albuns[4]);
-        $this->assertEquals($this->defaultValues[3], $albuns[4]->toArray());
+        $this->assertInstanceOf(ArrayObject::class, $albuns[1]);
+        $this->assertEquals($this->defaultValues[0], $albuns[1]->getArrayCopy());
+        $this->assertInstanceOf(ArrayObject::class, $albuns[2]);
+        $this->assertEquals($this->defaultValues[1], $albuns[2]->getArrayCopy());
+        $this->assertInstanceOf(ArrayObject::class, $albuns[3]);
+        $this->assertEquals($this->defaultValues[2], $albuns[3]->getArrayCopy());
+        $this->assertInstanceOf(ArrayObject::class, $albuns[4]);
+        $this->assertEquals($this->defaultValues[3], $albuns[4]->getArrayCopy());
 
         // Marca para mostrar os removidos e não usar o campo deleted
         $this->repository->getDbAdapter()->setShowDeleted(true)->setUseDeleted(false);
@@ -297,14 +297,14 @@ class RepositoryTest extends TestCase
         $this->repository->getDbAdapter()->setShowDeleted(true)->setUseDeleted(true);
         $albuns = $this->repository->findAssoc();
         $this->assertCount(4, $albuns, 'showDeleted=true, useDeleted=true');
-        $this->assertInstanceOf('\Realejo\Stdlib\ArrayObject', $albuns[1]);
-        $this->assertEquals($this->defaultValues[0], $albuns[1]->toArray());
-        $this->assertInstanceOf('\Realejo\Stdlib\ArrayObject', $albuns[2]);
-        $this->assertEquals($this->defaultValues[1], $albuns[2]->toArray());
-        $this->assertInstanceOf('\Realejo\Stdlib\ArrayObject', $albuns[3]);
-        $this->assertEquals($this->defaultValues[2], $albuns[3]->toArray());
-        $this->assertInstanceOf('\Realejo\Stdlib\ArrayObject', $albuns[4]);
-        $this->assertEquals($this->defaultValues[3], $albuns[4]->toArray());
+        $this->assertInstanceOf(ArrayObject::class, $albuns[1]);
+        $this->assertEquals($this->defaultValues[0], $albuns[1]->getArrayCopy());
+        $this->assertInstanceOf(ArrayObject::class, $albuns[2]);
+        $this->assertEquals($this->defaultValues[1], $albuns[2]->getArrayCopy());
+        $this->assertInstanceOf(ArrayObject::class, $albuns[3]);
+        $this->assertEquals($this->defaultValues[2], $albuns[3]->getArrayCopy());
+        $this->assertInstanceOf(ArrayObject::class, $albuns[4]);
+        $this->assertEquals($this->defaultValues[3], $albuns[4]->getArrayCopy());
     }
 
     public function testFindAssocWithMultipleKeys(): void
@@ -316,14 +316,14 @@ class RepositoryTest extends TestCase
         // O padrão é não usar o campo deleted
         $albuns = $this->repository->findAssoc();
         $this->assertCount(4, $albuns, 'showDeleted=false, useDeleted=false');
-        $this->assertInstanceOf('\Realejo\Stdlib\ArrayObject', $albuns[1]);
-        $this->assertEquals($this->defaultValues[0], $albuns[1]->toArray());
-        $this->assertInstanceOf('\Realejo\Stdlib\ArrayObject', $albuns[2]);
-        $this->assertEquals($this->defaultValues[1], $albuns[2]->toArray());
-        $this->assertInstanceOf('\Realejo\Stdlib\ArrayObject', $albuns[3]);
-        $this->assertEquals($this->defaultValues[2], $albuns[3]->toArray());
-        $this->assertInstanceOf('\Realejo\Stdlib\ArrayObject', $albuns[4]);
-        $this->assertEquals($this->defaultValues[3], $albuns[4]->toArray());
+        $this->assertInstanceOf(ArrayObject::class, $albuns[1]);
+        $this->assertEquals($this->defaultValues[0], $albuns[1]->getArrayCopy());
+        $this->assertInstanceOf(ArrayObject::class, $albuns[2]);
+        $this->assertEquals($this->defaultValues[1], $albuns[2]->getArrayCopy());
+        $this->assertInstanceOf(ArrayObject::class, $albuns[3]);
+        $this->assertEquals($this->defaultValues[2], $albuns[3]->getArrayCopy());
+        $this->assertInstanceOf(ArrayObject::class, $albuns[4]);
+        $this->assertEquals($this->defaultValues[3], $albuns[4]->getArrayCopy());
 
         // Marca para mostrar os removidos e não usar o campo deleted
         $this->repository->getDbAdapter()->setShowDeleted(true)->setUseDeleted(false);
@@ -333,14 +333,14 @@ class RepositoryTest extends TestCase
         $this->repository->getDbAdapter()->setShowDeleted(true)->setUseDeleted(true);
         $albuns = $this->repository->findAssoc();
         $this->assertCount(4, $albuns, 'showDeleted=true, useDeleted=true');
-        $this->assertInstanceOf('\Realejo\Stdlib\ArrayObject', $albuns[1]);
-        $this->assertEquals($this->defaultValues[0], $albuns[1]->toArray());
-        $this->assertInstanceOf('\Realejo\Stdlib\ArrayObject', $albuns[2]);
-        $this->assertEquals($this->defaultValues[1], $albuns[2]->toArray());
-        $this->assertInstanceOf('\Realejo\Stdlib\ArrayObject', $albuns[3]);
-        $this->assertEquals($this->defaultValues[2], $albuns[3]->toArray());
-        $this->assertInstanceOf('\Realejo\Stdlib\ArrayObject', $albuns[4]);
-        $this->assertEquals($this->defaultValues[3], $albuns[4]->toArray());
+        $this->assertInstanceOf(ArrayObject::class, $albuns[1]);
+        $this->assertEquals($this->defaultValues[0], $albuns[1]->getArrayCopy());
+        $this->assertInstanceOf(ArrayObject::class, $albuns[2]);
+        $this->assertEquals($this->defaultValues[1], $albuns[2]->getArrayCopy());
+        $this->assertInstanceOf(ArrayObject::class, $albuns[3]);
+        $this->assertEquals($this->defaultValues[2], $albuns[3]->getArrayCopy());
+        $this->assertInstanceOf(ArrayObject::class, $albuns[4]);
+        $this->assertEquals($this->defaultValues[3], $albuns[4]->getArrayCopy());
     }
 
     public function testServiceLocator(): void
@@ -349,23 +349,9 @@ class RepositoryTest extends TestCase
         $service = new RepositoryConcrete();
         $service->setServiceLocator($fakeServiceLocator);
         $this->assertInstanceOf(FakeServiceLocator::class, $service->getServiceLocator());
-        $this->assertInstanceOf(ContainerInterface::class, $service->getServiceLocator());
 
-        $cacheService = new CacheService();
-        $cacheService->setCacheDir($this->getDataDir() . '/cache');
-        $service->setCache($cacheService->getFrontend());
-
-        $dbAdapter = $service->getDbAdapter();
-        $this->assertInstanceOf(LaminasDbAdapter::class, $dbAdapter);
-        $this->assertInstanceOf(FakeServiceLocator::class, $dbAdapter->getServiceLocator());
-        $this->assertInstanceOf(ContainerInterface::class, $dbAdapter->getServiceLocator());
-
-        $this->assertNull($service->getFromServiceLocator('\DateTime'));
-
-        $realServiceLocator = new ServiceManager();
-        $service->setServiceLocator($realServiceLocator);
-        $this->assertInstanceOf(DateTime::class, $service->getFromServiceLocator('\DateTime'));
-
+        $service->setServiceLocator(new ServiceManager());
+        $this->assertInstanceOf(ServiceManager::class, $service->getServiceLocator());
         $fakeObject = (object)['id' => 1];
         $service->getServiceLocator()->setService('fake', $fakeObject);
         $this->assertTrue($service->getServiceLocator()->has('fake'));
@@ -403,7 +389,7 @@ class RepositoryTest extends TestCase
 
         $findAll = $this->repository->findAll();
         foreach ($findAll as $id => $row) {
-            $findAll[$id] = $row->toArray();
+            $findAll[$id] = $row->getArrayCopy();
         }
         $paginator = json_encode($temp);
         $this->assertEquals(json_encode($findAll), $paginator, 'retorno do paginator é igual');
@@ -422,10 +408,10 @@ class RepositoryTest extends TestCase
         $paginator = json_encode($temp);
 
         $this->assertNotEquals(json_encode($this->defaultValues), $paginator);
-        $fetchAll = $this->repository->findPaginated(null, null, 2);
+        $fetchAll = $this->repository->findPaginated([], [], 2);
         $temp = [];
         foreach ($fetchAll as $p) {
-            $temp[] = $p->toArray();
+            $temp[] = $p->getArrayCopy();
         }
         $fetchAll = $temp;
         $this->assertEquals(json_encode($fetchAll), $paginator);
@@ -433,7 +419,7 @@ class RepositoryTest extends TestCase
         // verifica se vai utilizar o mesmo cache id quando realizar a mesma consulta, pois estava criando nova e nunca
         // utilizando o cache no paginator
         $oldId = $this->repository->getCache()->getIterator()->key();
-        $fetchAll = $this->repository->setUseCache(true)->findPaginated(null, null, 2);
+        $fetchAll = $this->repository->setUseCache(true)->findPaginated([], [], 2);
         $this->assertEquals($oldId, $this->repository->getCache()->getIterator()->key());
     }
 }
